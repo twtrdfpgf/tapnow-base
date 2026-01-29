@@ -2,6 +2,9 @@
 export enum NodeType {
   TEXT_TO_IMAGE = 'TEXT_TO_IMAGE',
   TEXT_TO_VIDEO = 'TEXT_TO_VIDEO',
+  IMAGE_TO_IMAGE = 'IMAGE_TO_IMAGE',
+  IMAGE_TO_VIDEO = 'IMAGE_TO_VIDEO',
+  START_END_TO_VIDEO = 'START_END_TO_VIDEO',
   CREATIVE_DESC = 'CREATIVE_DESC',
   ORIGINAL_IMAGE = 'ORIGINAL_IMAGE',
 }
@@ -30,6 +33,7 @@ export interface NodeData {
   count?: number;
   model?: string;
   promptOptimize?: boolean; // Prompt Extension/Optimization switch
+  swapFrames?: boolean; // For START_END_TO_VIDEO: swap first/last frame order
   
   // Creative Desc specific
   optimizedPrompt?: string;

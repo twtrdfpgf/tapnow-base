@@ -5,6 +5,7 @@ export type StrategyType =
   | 'BANANA_EDIT_ASYNC' 
   | 'VIDEO_GEN_MINIMAX' 
   | 'VIDEO_GEN_STD' 
+  | 'VIDEO_GEN_CHAT'
   | 'VIDEO_GEN_FORM' 
   | 'KLING' 
   | 'KLING_OMNI'

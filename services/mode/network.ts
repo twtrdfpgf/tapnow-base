@@ -1,5 +1,5 @@
 
-import { ModelConfig } from "./types";
+import type { ModelConfig } from "./types";
 
 export const constructUrl = (baseUrl: string, endpointPath: string) => {
     let base = baseUrl ? baseUrl.replace(/\/$/, '') : '';
@@ -15,13 +15,59 @@ export const constructUrl = (baseUrl: string, endpointPath: string) => {
 export const fetchThirdParty = async (url: string, method: string, body: any, config: ModelConfig, options: { timeout?: number, retries?: number, isFormData?: boolean } = {}) => {
   const { timeout = 60000, retries = 0, isFormData = false } = options;
   
+  console.log('[Network] Fetching URL:', url);
+  console.log('[Network] Method:', method);
+  console.log('[Network] Has body:', !!body);
+  
   if (!config.key) {
       throw new Error("API Key missing. Please configure it in settings.");
   }
 
-  const headers: any = {
-    'Authorization': `Bearer ${config.key}`
-  };
+  // Masked key logging for debugging
+  const maskedKey = config.key.length > 8 
+      ? `${config.key.substring(0, 4)}...${config.key.substring(config.key.length - 4)} (Length: ${config.key.length})`
+      : '***';
+  console.log(`[Network] Using API Key: ${maskedKey}`);
+
+  const headers: any = {};
+  // 兼容 Gemini 原生格式 (x-goog-api-key) 和 OpenAI (Authorization)
+  // 如果是原生 Gemini 路径，通常使用 query param key=API_KEY 或 header x-goog-api-key
+  // 但对于中转商，Authorization: Bearer 通常也是支持的。
+  // 为了稳妥，如果检测到是原生路径，我们尝试同时加上 x-goog-api-key
+  if (url.includes('generateContent')) {
+       // 如果是原生 Gemini，使用 query param key=API_KEY
+       const separator = url.includes('?') ? '&' : '?';
+       // 注意：这里需要修改 url 变量，但它是 const 参数，我们需要一个新的变量
+       // 由于 fetchThirdParty 的参数设计，我们不能直接改 url，只能在 fetch 时处理
+       // 但考虑到兼容性，很多中转商其实并不支持 x-goog-api-key，而是只认 url query 中的 key
+       
+       // 为了支持修改 url，我们需要在下面 fetch 之前处理，或者现在就 hack 一下
+       // 最好的方式是如果检测到是 generateContent，就把 key 拼接到 url 上
+       if (!url.includes('key=')) {
+            url = `${url}${separator}key=${config.key}`;
+       }
+       
+       // 同时保留 header 以防万一，但 Authorization 有些中转商可能会校验冲突，
+       // 如果是原生格式，最好只用 key param 或 x-goog-api-key。
+       // 根据 Google 文档，原生是用 key param。
+       // 根据 NewAPI 文档截图，它是 POST /.../generateContent，并且 Authorization: Bearer <token>
+       // 所以我们保留 Authorization。
+       
+       headers['x-goog-api-key'] = config.key;
+       headers['Authorization'] = `Bearer ${config.key}`;
+  } else if (url.includes('api.poe.com')) {
+       // Poe API 可能需要使用 query parameter 传递 API key
+       const separator = url.includes('?') ? '&' : '?';
+       if (!url.includes('poe_api_key=') && !url.includes('key=')) {
+            url = `${url}${separator}poe_api_key=${config.key}`;
+       }
+       headers['Authorization'] = `Bearer ${config.key}`;
+  } else {
+       headers['Authorization'] = `Bearer ${config.key}`;
+  }
+  
+  console.log('[Network] Headers:', headers);
+  console.log('[Network] Final URL:', url);
   
   if (!isFormData && method.toUpperCase() !== 'GET') {
       headers['Content-Type'] = 'application/json';
@@ -73,7 +119,11 @@ export const fetchThirdParty = async (url: string, method: string, body: any, co
               if (!text) return {}; 
               return JSON.parse(text);
           } catch (e) {
-              throw new Error("Received invalid JSON response from server.");
+              const preview = text.slice(0, 200);
+              if (preview.trim().startsWith('<')) {
+                  throw new Error(`Server returned HTML instead of JSON. Check your Base URL and Endpoint. Preview: ${preview}...`);
+              }
+              throw new Error(`Received invalid JSON response from server. Content: ${preview}...`);
           }
       } catch (error: any) {
           clearTimeout(timeoutId);

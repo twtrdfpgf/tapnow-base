@@ -2,7 +2,7 @@
 import { VideoModelRules, VideoConstraints } from "../types";
 
 export const videoModels = ['Sora2', 'Veo 3.1 Fast', 'Veo 3.1 Pro', '海螺2.0', '海螺2.3', 'Kling O1 Std', 'Kling O1 Pro', '即梦 3.5', 'Kling 2.6 ProNS', 'Kling 2.6 ProYS', 'Kling 2.5 Std', 'Kling 2.5 Pro', 'Wan2.6', 'Wan2.5', 'Doubao Video', 'Grok video 3'];
-export const videoDurations = ['3s', '4s', '5s', '6s', '7s', '8s', '10s', '15s', '25s'];
+export const videoDurations = ['3s', '4s', '5s', '6s', '7s', '8s', '10s', '12s', '15s', '25s'];
 
 export const getVideoConstraints = (modelName: string, resolution: string | undefined, duration: string | undefined, inputCount: number): VideoConstraints => {
     const isDoubaoVideo = modelName === 'Doubao Video';
@@ -63,11 +63,11 @@ export const getVideoConstraints = (modelName: string, resolution: string | unde
         const allowed = ['6s'];
         disabledDurations = videoDurations.filter(d => !allowed.includes(d));
     } else if (isSora) {
-        // Sora 2: 720p (small), 1080p (large). Ratios 16:9, 9:16. Duration 10s, 15s.
+        // Sora 2: 720p (small), 1080p (large). Ratios 16:9, 9:16. Duration 4s, 8s, 12s.
         resOptions = ['720p', '1080p'];
         disabledRes = ['480p'];
         disabledRatios = ['1:1', '3:4', '4:3'];
-        const allowed = ['10s', '15s'];
+        const allowed = ['4s', '8s', '12s'];
         disabledDurations = videoDurations.filter(d => !allowed.includes(d));
     } else if (isWan) {
         // Wan: 720p, 1080p. Duration 5s, 10s.
@@ -117,7 +117,7 @@ export const getAutoCorrectedVideoSettings = (modelName: string, resolution: str
         if (resolution !== '720p') updates.resolution = '720p';
         if (duration !== '6s') updates.duration = '6s';
     } else if (isSora) {
-        if (!['10s', '15s'].includes(duration || '')) updates.duration = '10s';
+        if (!['4s', '8s', '12s'].includes(duration || '')) updates.duration = '8s';
         if (resolution === '480p') updates.resolution = '720p';
     } else if (isWan) {
         if (resolution === '480p') updates.resolution = '720p';

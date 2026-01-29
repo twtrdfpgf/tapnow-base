@@ -1,5 +1,5 @@
 
-import { ModelConfig } from "../types";
+import type { ModelConfig } from "../types";
 import { fetchThirdParty, constructUrl } from "../network";
 
 const retrieveMinimaxFile = async (fileId: string, taskId: string, config: ModelConfig): Promise<string> => {

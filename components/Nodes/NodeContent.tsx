@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { NodeData, NodeType } from '../../types';
 import { TextToImageNode } from './TextToImageNode';
 import { TextToVideoNode } from './TextToVideoNode';
+import { StartEndToVideoNode } from './StartEndToVideoNode';
 import { OriginalImageNode } from './OriginalImageNode';
 import { CreativeDescNode } from './CreativeDescNode';
 
@@ -14,7 +15,6 @@ interface NodeContentProps {
   inputs?: string[];
   onMaximize?: (id: string) => void;
   onDownload?: (id: string) => void;
-  onToolbarAction?: (nodeId: string, action: string) => void;
   onUpload?: (nodeId: string) => void;
   isSelecting?: boolean;
   onDelete?: (id: string) => void;
@@ -29,6 +29,8 @@ const NodeContentComponent: React.FC<NodeContentProps> = (props) => {
             return <TextToImageNode {...props} />;
         case NodeType.TEXT_TO_VIDEO:
             return <TextToVideoNode {...props} />;
+        case NodeType.START_END_TO_VIDEO:
+            return <StartEndToVideoNode {...props} />;
         case NodeType.ORIGINAL_IMAGE:
             return <OriginalImageNode {...props} />;
         case NodeType.CREATIVE_DESC:

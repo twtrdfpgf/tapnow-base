@@ -9,7 +9,7 @@ interface ThemeSwitcherProps {
 
 export const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({ isDark, onToggle }) => {
     return (
-        <div className="fixed top-6 right-6 z-50 flex items-center bg-black/20 backdrop-blur-md border border-white/10 rounded-full p-1 shadow-lg">
+        <div className={`flex items-center backdrop-blur-md border rounded-full p-1 shadow-lg transition-colors ${isDark ? 'bg-black/20 border-white/10' : 'bg-white/50 border-gray-200'}`}>
             <button
                 onClick={() => onToggle(false)}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${!isDark ? 'bg-white text-yellow-500 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}

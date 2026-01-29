@@ -14,66 +14,115 @@ interface BaseNodeProps {
   isDark?: boolean;
 }
 
+// Port component for cleaner code
+const ConnectionPort: React.FC<{
+  type: 'input' | 'output';
+  isDark: boolean;
+  onMouseDown?: (e: React.MouseEvent) => void;
+  onMouseUp?: (e: React.MouseEvent) => void;
+}> = ({ type, isDark, onMouseDown, onMouseUp }) => {
+  const isInput = type === 'input';
+  
+  return (
+    <div 
+      className={`absolute ${isInput ? '-left-3' : '-right-3'} top-1/2 -translate-y-1/2 z-50 group/port`}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        onMouseDown?.(e);
+      }}
+      onMouseUp={onMouseUp}
+    >
+      {/* Hover area for easier targeting */}
+      <div className="absolute -inset-4 cursor-crosshair" />
+      
+      {/* Port visual */}
+      <div className={`
+        relative w-3.5 h-3.5 rounded-full cursor-crosshair
+        transition-all duration-200 ease-out
+        ${isDark 
+          ? 'bg-[#1e1e1e] border border-zinc-600 shadow-[0_2px_4px_rgba(0,0,0,0.3)]' 
+          : 'bg-white border border-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.1)]'
+        }
+        group-hover/port:scale-125 
+        group-hover/port:border-blue-500
+        group-hover/port:shadow-[0_0_8px_rgba(59,130,246,0.5)]
+      `}>
+        {/* Inner dot */}
+        <div className={`
+          absolute inset-[3px] rounded-full
+          transition-all duration-200
+          ${isDark ? 'bg-zinc-400' : 'bg-gray-400'}
+          group-hover/port:bg-blue-500
+        `} />
+      </div>
+    </div>
+  );
+};
+
 const BaseNode: React.FC<BaseNodeProps> = ({ 
   data, selected, onMouseDown, onContextMenu, onConnectStart, onPortMouseUp, children, onResizeStart, isDark = true
 }) => {
   
-  const portBg = isDark ? 'bg-[#0B0C0E] border-zinc-500' : 'bg-white border-gray-400';
-  const portText = isDark ? 'text-zinc-400' : 'text-gray-500';
+  // Get accent color based on node type
+  const getAccentColor = () => {
+    switch (data.type) {
+      case NodeType.TEXT_TO_IMAGE: return 'cyan';
+      case NodeType.TEXT_TO_VIDEO: return 'cyan';
+      case NodeType.IMAGE_TO_IMAGE: return 'purple';
+      case NodeType.IMAGE_TO_VIDEO: return 'orange';
+      case NodeType.START_END_TO_VIDEO: return 'emerald';
+      default: return 'cyan';
+    }
+  };
+
+  const accentColor = getAccentColor();
+  const showInputPort = data.type !== NodeType.ORIGINAL_IMAGE;
 
   return (
     <div 
-      className={`absolute flex flex-col group`}
+      className="absolute flex flex-col group"
       style={{
         left: data.x,
         top: data.y,
         width: data.width,
         height: data.height,
-        // Boost z-index to 100 if stack is open, otherwise 50 if selected, else 1
-        zIndex: data.isStackOpen ? 100 : (selected ? 50 : 1), 
+        zIndex: data.isStackOpen ? 100 : (selected ? 50 : 10), 
         overflow: 'visible' 
       }}
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
     >
-      {/* Selection Border */}
-      {selected && (
-          <div className={`absolute inset-0 pointer-events-none rounded-xl border-2 border-cyan-500/50 z-40 ${data.isStackOpen ? 'opacity-0' : 'opacity-100'}`}></div> 
-      )}
-
       {/* Main Content Area */}
       <div className="relative w-full h-full">
           {children}
 
           {/* Connection Ports */}
-          
-          {/* INPUT PORT (Target) - Hidden for Original Image */}
-          {data.type !== NodeType.ORIGINAL_IMAGE && (
-            <div 
-              className={`absolute w-4 h-4 rounded-full border -left-2 top-1/2 -translate-y-1/2 flex items-center justify-center cursor-crosshair hover:scale-125 transition-transform z-50 shadow-sm ${portBg}`}
-              onMouseDown={(e) => e.stopPropagation()} // Prevent node drag
-              onMouseUp={(e) => onPortMouseUp && onPortMouseUp(e, data.id, 'target')} // Handle drop
-            >
-                <span className={`text-[10px] leading-none select-none relative -top-[0.5px] ${portText}`}>+</span>
-                <div className="absolute -inset-4 rounded-full bg-transparent z-10"></div>
-            </div>
+          {showInputPort && (
+            <ConnectionPort 
+              type="input" 
+              isDark={isDark} 
+              onMouseUp={(e) => onPortMouseUp?.(e, data.id, 'target')}
+            />
           )}
 
-          {/* OUTPUT PORT (Source) - Available for All Nodes */}
-          <div 
-            className={`absolute w-4 h-4 rounded-full border -right-2 top-1/2 -translate-y-1/2 flex items-center justify-center cursor-crosshair hover:scale-125 transition-transform z-50 shadow-sm ${portBg}`}
+          <ConnectionPort 
+            type="output" 
+            isDark={isDark} 
             onMouseDown={(e) => onConnectStart(e, 'source')}
-          >
-                <span className={`text-[10px] leading-none select-none relative -top-[0.5px] ${portText}`}>+</span>
-                <div className="absolute -inset-4 rounded-full bg-transparent z-10"></div>
-          </div>
+          />
 
-          {/* Resize Handle (Bottom Right of Main Box) */}
+          {/* Resize Handle */}
           <div 
-              className="absolute -right-1 -bottom-1 w-6 h-6 cursor-se-resize z-50 flex items-end justify-end p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              className={`
+                absolute -right-1 -bottom-1 w-5 h-5 cursor-se-resize z-50 
+                flex items-center justify-center
+                opacity-0 group-hover:opacity-100 transition-opacity duration-200
+              `}
               onMouseDown={onResizeStart}
           >
-              <div className={`w-2 h-2 border-r-2 border-b-2 ${isDark ? 'border-zinc-400' : 'border-gray-400'}`}></div>
+              <svg width="10" height="10" viewBox="0 0 10 10" className={isDark ? 'text-zinc-500' : 'text-gray-400'}>
+                <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
           </div>
       </div>
     </div>

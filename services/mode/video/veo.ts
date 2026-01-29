@@ -1,5 +1,5 @@
 
-import { ModelConfig, ModelDef } from "../types";
+import type { ModelConfig, ModelDef } from "../types";
 import { fetchThirdParty, constructUrl } from "../network";
 
 export const generateGenericVideo = async (
@@ -237,14 +237,26 @@ export const generateSoraVideo = async (
          images: inputImages
      };
 
+     console.log('[Sora] Creating video task...');
+     console.log('[Sora] URL:', targetUrl);
+     console.log('[Sora] Payload:', JSON.stringify(payload).substring(0, 500));
+
      const res = await fetchThirdParty(targetUrl, 'POST', payload, config, { timeout: 120000 });
      
+     console.log('[Sora] Create Response:', JSON.stringify(res).substring(0, 500));
+     
      if (res.url || res.data?.url) {
+         console.log('[Sora] Direct URL returned:', res.url || res.data?.url);
          return res.url || res.data?.url;
      }
 
      const taskId = res.id || res.task_id || res.data?.id;
-     if (!taskId) throw new Error("No Task ID returned from Sora");
+     if (!taskId) {
+         console.error('[Sora] No Task ID in response:', res);
+         throw new Error("No Task ID returned from Sora");
+     }
+     
+     console.log('[Sora] Task ID:', taskId);
      
      const queryEndpoint = config.queryEndpoint || '/v1/video/query';
      const qUrl = constructUrl(config.baseUrl, queryEndpoint);
@@ -261,15 +273,18 @@ export const generateSoraVideo = async (
             // Check status (flexible)
             const status = (check.status || check.data?.status || check.state || '').toString().toLowerCase();
             
+            console.log(`[Sora] Poll #${attempts + 1}, Status: "${status}", Response:`, JSON.stringify(check).substring(0, 300));
+            
             if (['success', 'succeeded', 'completed', 'ok'].includes(status)) {
-                 if (check.url) return check.url;
-                 if (check.data?.url) return check.data.url;
-                 if (check.data?.video_url) return check.data.video_url;
-                 if (check.video_url) return check.video_url;
+                 const videoUrl = check.url || check.data?.url || check.data?.video_url || check.video_url;
+                 console.log('[Sora] Video completed! URL:', videoUrl);
+                 if (videoUrl) return videoUrl;
             } else if (['failed', 'failure', 'error'].includes(status)) {
+                 console.error('[Sora] Generation failed:', check);
                  throw new Error(`Sora failed: ${check.fail_reason || check.error || 'Unknown error'}`);
             }
         } catch (e: any) {
+            console.warn(`[Sora] Poll error #${attempts + 1}:`, e.message);
             if (attempts > 20 && e.isNonRetryable) throw e;
         }
         attempts++;

@@ -1,5 +1,5 @@
 
-import { ModelConfig } from "../types";
+import type { ModelConfig } from "../types";
 import { fetchThirdParty, constructUrl } from "../network";
 
 export const generateAlibailianVideo = async (

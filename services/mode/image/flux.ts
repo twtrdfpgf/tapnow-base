@@ -1,6 +1,15 @@
 
-import { ModelConfig, ModelDef } from "../types";
+import type { ModelConfig, ModelDef } from "../types";
 import { fetchThirdParty, constructUrl } from "../network";
+
+// Helper: Extract base64 data from data URL
+const extractBase64 = (dataUrl: string): string => {
+    if (dataUrl.startsWith('data:')) {
+        const parts = dataUrl.split(',');
+        return parts.length > 1 ? parts[1] : dataUrl;
+    }
+    return dataUrl;
+};
 
 export const generateStandardImage = async (
     config: ModelConfig,
@@ -18,6 +27,8 @@ export const generateStandardImage = async (
    const isJimeng = modelDef.id.includes('jimeng');
    const isDoubao = modelDef.id.includes('doubao');
    const isZimage = modelDef.id.includes('z-image');
+   const isQwen = modelDef.id.includes('qwen');
+   const hasInputImage = inputImages.length > 0;
 
    if ((isFlux || isZimage) && n > 1) {
       const promises = Array(n).fill(null).map(async () => {
@@ -29,14 +40,16 @@ export const generateStandardImage = async (
          };
          if (isFlux) {
              if (resolution !== '1k') payload.quality = 'hd';
+             // Flux image-to-image support
+             if (hasInputImage) {
+                 payload.image = inputImages[0];
+                 payload.image_url = inputImages[0];
+             }
          } else if (isZimage) {
              payload.response_format = "b64_json";
              payload.watermark = false;
-             // Use promptOptimize if provided, default to false (or true if desired, assuming false for manual control)
-             // Existing legacy code forced it to true. Now we use the toggle.
-             // If undefined, we can default to true for backward compatibility or false. Let's strictly follow toggle.
              payload.prompt_extend = !!promptOptimize;
-             if (inputImages.length > 0) payload.image = inputImages[0].split(',')[1];
+             if (hasInputImage) payload.image = extractBase64(inputImages[0]);
          }
          const res = await fetchThirdParty(targetUrl, 'POST', payload, config, { timeout: 200000 });
          const data = (res.data && Array.isArray(res.data)) ? res.data : (res.data ? [res.data] : [res]);
@@ -59,20 +72,35 @@ export const generateStandardImage = async (
        payload.size = calculatedSize;
        if (resolution !== '1k') payload.quality = 'hd';
        delete payload.response_format; 
-   } else if (isJimeng) {
-       payload.size = aspectRatio; 
+       // Flux image-to-image support
+       if (hasInputImage) {
+           payload.image = inputImages[0];
+           payload.image_url = inputImages[0];
+       }
    } else {
        payload.size = calculatedSize;
    }
 
-   if (isDoubao) {
-       payload.watermark = false;
-       if (resolution === '2k' || resolution === '4k') payload.response_format = 'url';
-   }
    if (isZimage) {
        payload.watermark = false;
        payload.prompt_extend = !!promptOptimize;
-       if (inputImages.length > 0) payload.image = inputImages[0].split(',')[1];
+       if (hasInputImage) payload.image = extractBase64(inputImages[0]);
+   }
+
+   // Jimeng (即梦) image-to-image support
+   if ((isJimeng || isDoubao) && hasInputImage) {
+       payload.image = inputImages[0];
+       payload.image_url = inputImages[0];
+       // Some APIs use these alternative field names
+       payload.init_image = inputImages[0];
+       payload.reference_image = inputImages[0];
+   }
+
+   // Qwen image-to-image support
+   if (isQwen && hasInputImage) {
+       payload.image = inputImages[0];
+       payload.image_url = inputImages[0];
+       payload.ref_image = inputImages[0];
    }
 
    const res = await fetchThirdParty(targetUrl, 'POST', payload, config, { timeout: 200000 });

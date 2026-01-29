@@ -1,11 +1,13 @@
 
-import { MODEL_REGISTRY, getModelConfig, saveModelConfig, ModelConfig, registerCustomModel } from "./mode/config";
+import { MODEL_REGISTRY, getModelConfig, saveModelConfig, registerCustomModel, deleteModel, isCustomModel, getVisibleModels } from "./mode/config";
+import type { ModelConfig } from "./mode/config";
 import { IMAGE_HANDLERS, BananaHandler, Flux2Handler } from "./mode/image/configurations";
 import { VIDEO_HANDLERS, Sora2Handler, KlingStandardHandler } from "./mode/video/configurations";
 import { constructUrl, fetchThirdParty } from "./mode/network";
 
 // Re-export for UI
-export { MODEL_REGISTRY, getModelConfig, saveModelConfig, ModelConfig, registerCustomModel };
+export { MODEL_REGISTRY, getModelConfig, saveModelConfig, registerCustomModel, deleteModel, isCustomModel, getVisibleModels };
+export type { ModelConfig };
 
 // --- Generators ---
 
@@ -47,6 +49,9 @@ export const generateImage = async (
 
   const config = getModelConfig(modelName);
   
+  // Debug: Log image generation parameters
+  console.log(`[Image Gen] Model: ${modelName}, Input Images: ${inputImages.length}, Prompt Optimize: ${promptOptimize}`);
+  
   try {
       const result = await handler.generate(config, prompt, { aspectRatio, resolution, inputImages, count, promptOptimize });
       return Array.isArray(result) ? result : [result];
@@ -76,7 +81,7 @@ export const generateVideo = async (
     if (!handler) {
         const def = MODEL_REGISTRY[realModelName];
         if (def) {
-            if (def.type === 'VIDEO_GEN_FORM') handler = Sora2Handler;
+            if (def.type === 'VIDEO_GEN_CHAT') handler = Sora2Handler;
             else handler = KlingStandardHandler; // Default to Generic Video Gen
         }
     }
@@ -84,6 +89,10 @@ export const generateVideo = async (
     if (!handler) handler = VIDEO_HANDLERS['Sora2'];
 
     const config = getModelConfig(realModelName);
+    
+    // Debug: Log video generation parameters
+    console.log(`[Video Gen] Model: ${realModelName}, Input Images: ${inputImages.length}, Start-End Mode: ${isStartEndMode}, Prompt Optimize: ${promptOptimize}`);
+    console.log(`[Video Gen] Config:`, { baseUrl: config.baseUrl, endpoint: config.endpoint, queryEndpoint: config.queryEndpoint, modelId: config.modelId, hasKey: !!config.key });
     
     try {
         const result = await handler.generate(config, prompt, { 

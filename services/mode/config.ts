@@ -1,10 +1,12 @@
 
 import { EnvConfig } from "../env";
-import { ModelDef, ModelConfig } from "./types";
+import type { ModelDef, ModelConfig } from "./types";
 
-export { ModelConfig };
+export type { ModelConfig };
 
 const CUSTOM_MODELS_KEY = 'CUSTOM_MODEL_REGISTRY';
+const DELETED_MODELS_KEY = 'DELETED_MODELS';
+
 const loadCustomModels = (): Record<string, ModelDef> => {
     if (typeof window === 'undefined') return {};
     try {
@@ -13,30 +15,32 @@ const loadCustomModels = (): Record<string, ModelDef> => {
     } catch(e) { return {}; }
 };
 
+// 加载已删除的模型列表
+const loadDeletedModels = (): Set<string> => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+        const stored = localStorage.getItem(DELETED_MODELS_KEY);
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch(e) { return new Set(); }
+};
+
 const customModels = loadCustomModels();
+const deletedModels = loadDeletedModels();
 
 export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // --- Image Models ---
   'BananaPro': { id: 'gemini-3-pro-image-preview', name: 'Banana Pro', type: 'CHAT', category: 'IMAGE', defaultEndpoint: '/v1/chat/completions' },
-  'Banana Pro Edit': { 
-      id: 'gemini-3-pro-image-preview', 
-      name: 'Banana Pro Edit', 
-      type: 'BANANA_EDIT_ASYNC', 
-      category: 'IMAGE', 
-      defaultEndpoint: '/api/gemini/nano-banana'
-  },
   'Banana': { id: 'gemini-2.5-flash-image-preview', name: 'Banana', type: 'CHAT', category: 'IMAGE', defaultEndpoint: '/v1/chat/completions' },
   'Flux2': { id: 'flux-kontext-pro', name: 'Flux 2', type: 'IMAGE_GEN', category: 'IMAGE', defaultEndpoint: '/v1/images/generations' },
   
-  '即梦4.5': { id: 'doubao-seedream-4-5-251128', name: 'Jimeng 4.5', type: 'IMAGE_GEN', category: 'IMAGE', defaultEndpoint: '/v1/images/generations' },
+  '即梦 4.5': { id: 'doubao-seedream-4-5-251128', name: 'Jimeng 4.5', type: 'IMAGE_GEN', category: 'IMAGE', defaultEndpoint: '/v1/images/generations' },
   '即梦 4': { id: 'doubao-seedream-4-0-250828', name: 'Jimeng 4', type: 'IMAGE_GEN', category: 'IMAGE', defaultEndpoint: '/v1/images/generations' },
   
   'MJ': { id: 'mj_modal', name: 'Midjourney', type: 'MJ_MODAL', category: 'IMAGE', defaultEndpoint: '/mj/submit/modal' },
   'Zimage': { id: 'z-image-turbo', name: 'Qwen Zimage', type: 'IMAGE_GEN', category: 'IMAGE', defaultEndpoint: '/v1/images/generations' },
-  'Qwenedit': { id: 'qwen-image-edit-2509', name: 'Qwen Edit', type: 'IMAGE_GEN', category: 'IMAGE', defaultEndpoint: '/v1/images/generations' },
 
   // --- Video Models ---
-  'Sora 2': { id: 'sora-2-all', name: 'Sora 2', type: 'VIDEO_GEN_FORM', category: 'VIDEO', defaultEndpoint: '/v1/video/create', defaultQueryEndpoint: '/v1/video/query' },
+  'Sora 2': { id: 'sora-2', name: 'Sora 2', type: 'VIDEO_GEN_CHAT', category: 'VIDEO', defaultEndpoint: '/v1/chat/completions' },
   'Veo 3.1 Fast': { id: 'veo3.1', name: 'Veo 3.1 Fast', type: 'VIDEO_GEN_STD', category: 'VIDEO', defaultEndpoint: '/v1/video/create', defaultQueryEndpoint: '/v1/video/query' },
   'Veo 3.1 Pro': { id: 'veo3.1-pro', name: 'Veo 3.1 Pro', type: 'VIDEO_GEN_STD', category: 'VIDEO', defaultEndpoint: '/v1/video/create', defaultQueryEndpoint: '/v1/video/query' },
   '海螺2.0': { 
@@ -58,18 +62,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       defaultDownloadEndpoint: '/v1/files/retrieve'
   },
   
-  // Kling O1 Split
-  'Kling O1 Std': { id: 'kling-omni-video', name: 'Kling O1 Std', type: 'KLING_OMNI', category: 'VIDEO', defaultEndpoint: '/kling/v1/videos/omni-video' },
+  // Kling O1
   'Kling O1 Pro': { id: 'kling-omni-video', name: 'Kling O1 Pro', type: 'KLING_OMNI', category: 'VIDEO', defaultEndpoint: '/kling/v1/videos/omni-video' },
   
   '即梦 3.5': { id: 'doubao-seedance-1-5-pro', name: '即梦 3.5', type: 'VIDEO_GEN_STD', category: 'VIDEO', defaultEndpoint: '/v1/videos' },
   
-  // Kling 2.6
-  'Kling 2.6 ProNS': { id: 'kling-v2-6', name: 'Kling 2.6 ProNS', type: 'KLING', category: 'VIDEO', defaultEndpoint: '/kling/v1/videos' },
-  'Kling 2.6 ProYS': { id: 'kling-v2-6', name: 'Kling 2.6 ProYS', type: 'KLING', category: 'VIDEO', defaultEndpoint: '/kling/v1/videos' },
-  
   // Kling 2.5
-  'Kling 2.5 Std': { id: 'kling-v2-5-turbo', name: 'Kling 2.5 Std', type: 'KLING', category: 'VIDEO', defaultEndpoint: '/kling/v1/videos' },
   'Kling 2.5 Pro': { id: 'kling-v2-5-turbo', name: 'Kling 2.5 Pro', type: 'KLING', category: 'VIDEO', defaultEndpoint: '/kling/v1/videos' },
 
   'Wan2.6': { 
@@ -94,14 +92,36 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   ...customModels
 };
 
+// 启动时删除已标记删除的模型
+deletedModels.forEach(key => {
+    delete MODEL_REGISTRY[key];
+});
+
 const getStorageKey = (modelName: string) => `API_CONFIG_MODEL_${modelName}`;
+
+// 全局配置 Key（与 SettingsModal 保持一致）
+const GLOBAL_BASE_URL_KEY = 'GLOBAL_BASE_URL';
+const GLOBAL_API_KEY_KEY = 'GLOBAL_API_KEY';
+
+// 获取全局配置
+const getGlobalConfig = (): { baseUrl: string; key: string } => {
+    if (typeof window === 'undefined') {
+        return { baseUrl: '', key: '' };
+    }
+    return {
+        baseUrl: localStorage.getItem(GLOBAL_BASE_URL_KEY) || '',
+        key: localStorage.getItem(GLOBAL_API_KEY_KEY) || ''
+    };
+};
 
 export const getModelConfig = (modelName: string): ModelConfig => {
     const def = MODEL_REGISTRY[modelName];
+    const globalConfig = getGlobalConfig();
+    
     if (!def) {
         return {
-            baseUrl: EnvConfig.DEFAULT_BASE_URL,
-            key: '', 
+            baseUrl: globalConfig.baseUrl || EnvConfig.DEFAULT_BASE_URL,
+            key: globalConfig.key, 
             modelId: '',
             endpoint: '/v1/chat/completions'
         };
@@ -111,20 +131,43 @@ export const getModelConfig = (modelName: string): ModelConfig => {
         const stored = localStorage.getItem(getStorageKey(modelName));
         if (stored) {
             const parsed = JSON.parse(stored);
+            
+            // 自动更新过时的 endpoint
+            let endpoint = parsed.endpoint;
+            let queryEndpoint = parsed.queryEndpoint;
+            let downloadEndpoint = parsed.downloadEndpoint;
+            
+            // 如果当前 endpoint 是旧的 chat completions，更新为新的 video create
+            if (endpoint === '/v1/chat/completions' && def.type === 'VIDEO_GEN_STD') {
+                endpoint = def.defaultEndpoint;
+                queryEndpoint = def.defaultQueryEndpoint || '';
+                downloadEndpoint = def.defaultDownloadEndpoint || '';
+                
+                // 保存更新后的配置
+                saveModelConfig(modelName, {
+                    ...parsed,
+                    endpoint,
+                    queryEndpoint,
+                    downloadEndpoint
+                });
+            }
+            
             return {
-                baseUrl: parsed.baseUrl || EnvConfig.DEFAULT_BASE_URL,
-                key: parsed.key || '', 
+                // 模型特定配置优先，否则使用全局配置
+                baseUrl: parsed.baseUrl || globalConfig.baseUrl || EnvConfig.DEFAULT_BASE_URL,
+                key: parsed.key || globalConfig.key || '', 
                 modelId: parsed.modelId || def.id,
-                endpoint: parsed.endpoint || def.defaultEndpoint,
-                queryEndpoint: parsed.queryEndpoint || def.defaultQueryEndpoint || '',
-                downloadEndpoint: parsed.downloadEndpoint || def.defaultDownloadEndpoint || ''
+                endpoint: endpoint || def.defaultEndpoint,
+                queryEndpoint: queryEndpoint || def.defaultQueryEndpoint || '',
+                downloadEndpoint: downloadEndpoint || def.defaultDownloadEndpoint || ''
             };
         }
     }
 
+    // 没有模型特定配置时，使用全局配置
     return {
-        baseUrl: EnvConfig.DEFAULT_BASE_URL,
-        key: '', 
+        baseUrl: globalConfig.baseUrl || EnvConfig.DEFAULT_BASE_URL,
+        key: globalConfig.key || '', 
         modelId: def.id,
         endpoint: def.defaultEndpoint,
         queryEndpoint: def.defaultQueryEndpoint || '',
@@ -144,7 +187,49 @@ export const registerCustomModel = (key: string, def: ModelDef) => {
     const current = loadCustomModels();
     current[key] = def;
     localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(current));
+    // 如果之前隐藏过，取消隐藏
+    unhideModel(key);
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('modelRegistryUpdated'));
     }
+};
+
+// 删除模型（任意模型都可删除）
+export const deleteModel = (key: string): boolean => {
+    if (!MODEL_REGISTRY[key]) return false;
+    
+    // 从 MODEL_REGISTRY 中删除
+    delete MODEL_REGISTRY[key];
+    
+    // 如果是自定义模型，从自定义模型存储中删除
+    const customModels = loadCustomModels();
+    if (customModels[key]) {
+        delete customModels[key];
+        localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(customModels));
+    }
+    
+    // 记录已删除的内置模型
+    const deleted = loadDeletedModels();
+    deleted.add(key);
+    localStorage.setItem(DELETED_MODELS_KEY, JSON.stringify([...deleted]));
+    deletedModels.add(key);
+    
+    // 删除该模型的配置
+    localStorage.removeItem(`API_CONFIG_MODEL_${key}`);
+    
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('modelRegistryUpdated'));
+    }
+    return true;
+};
+
+// 检查是否是自定义模型
+export const isCustomModel = (key: string): boolean => {
+    const customModels = loadCustomModels();
+    return !!customModels[key];
+};
+
+// 获取可见的模型列表（用于下拉框）
+export const getVisibleModels = (): string[] => {
+    return Object.keys(MODEL_REGISTRY);
 };

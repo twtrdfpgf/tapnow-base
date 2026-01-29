@@ -12,13 +12,28 @@ export const LocalEditableTitle: React.FC<{ title: string; onUpdate: (newTitle: 
     useEffect(() => { if (isEditing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [isEditing]);
     useEffect(() => { if (!isEditing) setEditValue(title); }, [title, isEditing]);
     const handleBlur = () => { setIsEditing(false); if (editValue.trim() && editValue !== title) onUpdate(editValue.trim().slice(0, 20)); else setEditValue(title); };
-    const inputBg = isDark ? 'bg-zinc-800 text-white border-zinc-600' : 'bg-white text-gray-900 border-gray-300 shadow-sm';
-    const displayBg = isDark ? 'text-gray-300 hover:border-zinc-700 bg-[#1A1D21]/50' : 'text-gray-700 hover:border-gray-300 bg-white/50';
 
     return isEditing ? (
-        <input ref={inputRef} type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleBlur} onKeyDown={(e) => { if (e.key === 'Enter') handleBlur(); if (e.key === 'Escape') { setEditValue(title); setIsEditing(false); } }} className={`${inputBg} border rounded px-2 py-0.5 outline-none w-[140px] text-xs font-bold`} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} />
+        <input 
+            ref={inputRef} 
+            type="text" 
+            value={editValue} 
+            onChange={(e) => setEditValue(e.target.value)} 
+            onBlur={handleBlur} 
+            onKeyDown={(e) => { if (e.key === 'Enter') handleBlur(); if (e.key === 'Escape') { setEditValue(title); setIsEditing(false); } }} 
+            className={`bg-black/60 backdrop-blur-md text-white border border-white/20 rounded-lg px-3 py-1.5 outline-none w-[160px] text-sm font-semibold focus:border-white/40`} 
+            onClick={(e) => e.stopPropagation()} 
+            onMouseDown={(e) => e.stopPropagation()} 
+        />
     ) : (
-        <div className={`${displayBg} font-bold text-xs px-2 py-0.5 rounded cursor-text border border-transparent truncate max-w-[140px]`} onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); setEditValue(title); }} onMouseDown={(e) => e.stopPropagation()} title={title}>{title}</div>
+        <div 
+            className="bg-black/40 backdrop-blur-md text-white font-semibold text-sm px-3 py-1.5 rounded-lg cursor-text border border-transparent hover:border-white/20 truncate max-w-[160px] transition-all" 
+            onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); setEditValue(title); }} 
+            onMouseDown={(e) => e.stopPropagation()} 
+            title={title}
+        >
+            {title}
+        </div>
     );
 };
 
@@ -35,61 +50,62 @@ export const LocalCustomDropdown = ({ options, value, onChange, isOpen, onToggle
         return () => document.removeEventListener('mousedown', handleClickOutside, true);
     }, [isOpen, onClose]);
 
-    // Reset hover state when closed
     useEffect(() => { if (!isOpen) { setHoveredGroup(null); } }, [isOpen]);
 
     const handleMouseEnterGroup = (label: string, e: React.MouseEvent) => {
         if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
-        
-        // Calculate position relative to the main dropdown container (listRef's parent)
-        // We use the event target's rect and the list container's rect
         if (listRef.current) {
             const listRect = listRef.current.getBoundingClientRect();
             const itemRect = e.currentTarget.getBoundingClientRect();
-            // The flyout should be positioned relative to the main dropdown container
-            // Top offset = Item Top - List Top (scrolling handled naturally by using rects)
             setFlyoutTop(itemRect.top - listRect.top);
         }
         setHoveredGroup(label);
     };
 
     const handleMouseLeave = () => {
-        hoverTimeout.current = setTimeout(() => {
-            setHoveredGroup(null);
-        }, 200); // Increased timeout for better UX
+        hoverTimeout.current = setTimeout(() => setHoveredGroup(null), 200);
     };
 
     const handleMouseEnterFlyout = () => {
         if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
     };
 
-    const bgClass = isDark ? 'bg-[#18181B] border-zinc-700' : 'bg-white border-gray-200';
-    const hoverClass = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100';
-    const iconColor = isDark ? 'text-zinc-500 group-hover:text-zinc-300' : 'text-gray-400 group-hover:text-gray-600';
-    const optionHover = isDark ? 'hover:bg-zinc-800 hover:text-gray-200' : 'hover:bg-gray-100 hover:text-gray-900';
-    const activeItem = isDark ? 'bg-cyan-500/10 text-cyan-400' : 'bg-cyan-50 text-cyan-600';
-    
-    // Sub-menu flyout style
-    const flyoutBg = isDark ? 'bg-[#1A1D21] border-zinc-700' : 'bg-white border-gray-200';
+    const bgClass = isDark ? 'bg-[#1a1a1a] border-zinc-700' : 'bg-white border-gray-200 shadow-xl';
+    const hoverClass = isDark ? 'hover:bg-zinc-700' : 'hover:bg-gray-100';
+    const iconColor = isDark ? 'text-zinc-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700';
+    const optionHover = isDark ? 'hover:bg-zinc-700 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900';
+    const activeItem = isDark ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600';
+    const flyoutBg = isDark ? 'bg-[#1a1a1a] border-zinc-700' : 'bg-white border-gray-200 shadow-xl';
 
-    // Find active group items
     const activeGroupItems = hoveredGroup ? (options.find((o: any) => typeof o === 'object' && o.label === hoveredGroup)?.items || []) : [];
 
     return (
-        <div className="relative h-full flex items-center" ref={ref}>
+        <div className="relative flex items-center" ref={ref}>
             {/* Trigger Button */}
-            <div className={`flex items-center gap-1.5 cursor-pointer group h-full px-1.5 rounded transition-colors ${isOpen ? (isDark ? 'bg-white/5' : 'bg-gray-100') : ''} ${hoverClass}`} onClick={(e) => { e.stopPropagation(); onToggle(); }}>
-                {Icon && <Icon size={13} className={`transition-colors ${isOpen ? 'text-cyan-400' : iconColor}`} />}
-                <span className={`text-[10px] font-medium transition-colors select-none ${isOpen ? (isDark ? 'text-gray-200' : 'text-gray-900') : (isDark ? 'text-zinc-400 group-hover:text-zinc-200' : 'text-gray-500 group-hover:text-gray-700')} ${Icon ? 'min-w-[16px] text-center' : 'max-w-[70px] truncate'}`}>{value}</span>
-                {!Icon && <Icons.ChevronRight size={10} className={`transition-all duration-200 ${isOpen ? 'rotate-[-90deg] text-cyan-400' : `rotate-90 ${isDark ? 'text-zinc-600 group-hover:text-zinc-400' : 'text-gray-400 group-hover:text-gray-600'}`}`} />}
-            </div>
+            <button 
+                className={`flex items-center gap-2 cursor-pointer group h-8 px-3 rounded-lg border transition-all ${
+                    isOpen 
+                        ? (isDark ? 'bg-zinc-700 border-zinc-600' : 'bg-gray-100 border-gray-300') 
+                        : (isDark ? 'border-zinc-700 hover:border-zinc-600' : 'border-gray-200 hover:border-gray-300')
+                } ${hoverClass}`} 
+                onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            >
+                {Icon && <Icon size={15} className={`transition-colors ${isOpen ? (isDark ? 'text-blue-400' : 'text-blue-600') : iconColor}`} />}
+                <span className={`text-xs font-medium transition-colors select-none ${
+                    isOpen 
+                        ? (isDark ? 'text-white' : 'text-gray-900') 
+                        : (isDark ? 'text-zinc-300 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900')
+                } ${Icon ? 'min-w-[20px] text-center' : 'max-w-[90px] truncate'}`}>
+                    {value}
+                </span>
+                {!Icon && <Icons.ChevronRight size={12} className={`transition-all duration-200 ${isOpen ? 'rotate-[-90deg] text-blue-400' : `rotate-90 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}`} />}
+            </button>
 
             {/* Main Dropdown Body */}
             {isOpen && (
-                <div className={`absolute bottom-full mb-2 ${align === 'left' ? 'left-0' : align === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'} ${width} min-w-[120px] ${bgClass} border rounded-lg shadow-2xl py-1 z-[100] animate-in fade-in slide-in-from-bottom-2 duration-150 overflow-visible`} onMouseDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
+                <div className={`absolute bottom-full mb-2 ${align === 'left' ? 'left-0' : align === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'} ${width} min-w-[130px] ${bgClass} border rounded-xl shadow-2xl py-1.5 z-[100] animate-in fade-in slide-in-from-bottom-2 duration-150 overflow-visible`} onMouseDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
                     
-                    {/* Scrollable List */}
-                    <div ref={listRef} className="max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+                    <div ref={listRef} className="max-h-[300px] overflow-y-auto custom-scrollbar px-1.5">
                         {options.map((opt: any) => {
                             const isGroup = typeof opt === 'object';
                             const label = isGroup ? opt.label : opt;
@@ -101,14 +117,14 @@ export const LocalCustomDropdown = ({ options, value, onChange, isOpen, onToggle
                             return (
                                 <div 
                                     key={label}
-                                    className={`relative px-3 py-1.5 text-[10px] font-medium rounded-md transition-colors flex items-center justify-between group/item cursor-pointer
+                                    className={`relative px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-between cursor-pointer mb-0.5
                                         ${isDisabled 
                                             ? 'text-zinc-600 cursor-not-allowed opacity-50' 
                                             : (isSelected || (isGroup && isGroupHovered)
                                                 ? activeItem 
                                                 : (containsSelection 
-                                                    ? (isDark ? 'text-cyan-400' : 'text-cyan-600') + ` ${optionHover}`
-                                                    : (isDark ? 'text-zinc-400' : 'text-gray-500') + ` ${optionHover}`
+                                                    ? (isDark ? 'text-blue-400' : 'text-blue-600') + ` ${optionHover}`
+                                                    : (isDark ? 'text-zinc-300' : 'text-gray-600') + ` ${optionHover}`
                                                   )
                                             )
                                         }
@@ -121,32 +137,30 @@ export const LocalCustomDropdown = ({ options, value, onChange, isOpen, onToggle
                                     }}
                                 >
                                     <span className="whitespace-nowrap pr-2">{label}</span>
-                                    
-                                    {/* Icons for selection or group indicator */}
-                                    {isSelected && <Icons.Check size={10} className="text-cyan-400 shrink-0 ml-2" />}
-                                    {isGroup && <Icons.ChevronRight size={10} className={`shrink-0 ml-2 ${isGroupHovered ? 'text-cyan-400' : (isDark ? 'text-zinc-600' : 'text-gray-300')}`} />}
+                                    {isSelected && <Icons.Check size={12} className="text-blue-400 shrink-0 ml-2" />}
+                                    {isGroup && <Icons.ChevronRight size={12} className={`shrink-0 ml-2 ${isGroupHovered ? 'text-blue-400' : (isDark ? 'text-zinc-500' : 'text-gray-400')}`} />}
                                 </div>
                             );
                         })}
                     </div>
 
-                    {/* Independent Flyout Menu (Sibling to Scroll Container to avoid clipping) */}
+                    {/* Flyout Menu */}
                     {hoveredGroup && activeGroupItems.length > 0 && (
                         <div 
-                            className={`absolute left-full ml-1.5 w-[130px] ${flyoutBg} border rounded-lg shadow-2xl py-1 z-[110] animate-in fade-in slide-in-from-left-2 duration-150 before:absolute before:-left-4 before:top-0 before:h-full before:w-4 before:bg-transparent`}
+                            className={`absolute left-full ml-2 w-[150px] ${flyoutBg} border rounded-xl shadow-2xl py-1.5 z-[110] animate-in fade-in slide-in-from-left-2 duration-150 before:absolute before:-left-4 before:top-0 before:h-full before:w-4 before:bg-transparent`}
                             style={{ top: flyoutTop }}
                             onMouseEnter={handleMouseEnterFlyout}
                             onMouseLeave={handleMouseLeave}
                         >
-                            <div className="max-h-[250px] overflow-y-auto custom-scrollbar p-1">
+                            <div className="max-h-[250px] overflow-y-auto custom-scrollbar px-1.5">
                                 {activeGroupItems.map((subItem: string) => {
                                     const isSubSelected = subItem === value;
                                     return (
                                         <div 
                                             key={subItem}
-                                            className={`px-3 py-1.5 text-[10px] font-medium rounded-md transition-colors flex items-center justify-between cursor-pointer mb-0.5
+                                            className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-between cursor-pointer mb-0.5
                                                 ${isSubSelected ? activeItem : optionHover}
-                                                ${!isSubSelected && isDark ? 'text-gray-300' : ''} 
+                                                ${!isSubSelected && isDark ? 'text-zinc-300' : ''} 
                                             `}
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -155,7 +169,7 @@ export const LocalCustomDropdown = ({ options, value, onChange, isOpen, onToggle
                                             }}
                                         >
                                             <span className="truncate">{subItem}</span>
-                                            {isSubSelected && <Icons.Check size={10} className="text-cyan-400 shrink-0 ml-2" />}
+                                            {isSubSelected && <Icons.Check size={12} className="text-blue-400 shrink-0 ml-2" />}
                                         </div>
                                     );
                                 })}
@@ -179,13 +193,17 @@ export const LocalThumbnailItem = memo(({ src, index, isDark }: { src: string, i
     );
 });
 
-export const LocalInputThumbnails = memo(({ inputs, ready, isDark }: { inputs: string[], ready: boolean, isDark: boolean }) => {
+export const LocalInputThumbnails = memo(({ inputs, ready, isDark, label }: { inputs: string[], ready: boolean, isDark: boolean, label?: string }) => {
     if (!inputs || inputs.length === 0) return null;
+    const labelColor = isDark ? 'text-zinc-500' : 'text-gray-400';
     return (
-       <div className="flex justify-center gap-2 pb-2 overflow-x-auto no-scrollbar min-h-[56px]">
-           {inputs.slice(0, 8).map((src, i) => (
-               ready ? <LocalThumbnailItem key={src + i} src={src} index={i} isDark={isDark} /> : <div key={i} className={`relative w-[48px] h-[48px] flex-shrink-0 border rounded-lg overflow-hidden shadow-sm ${isDark ? 'border-zinc-700 bg-black/40' : 'border-gray-300 bg-gray-100'}`}><div className={`absolute inset-0 ${isDark ? 'bg-zinc-800/50' : 'bg-gray-200'}`} /></div>
-           ))}
+       <div className="flex flex-col items-center gap-1 pb-2">
+           {label && <span className={`text-[9px] font-bold uppercase ${labelColor}`}>{label}</span>}
+           <div className="flex justify-center gap-2 overflow-x-auto no-scrollbar min-h-[48px]">
+               {inputs.slice(0, 8).map((src, i) => (
+                   ready ? <LocalThumbnailItem key={src + i} src={src} index={i} isDark={isDark} /> : <div key={i} className={`relative w-[48px] h-[48px] flex-shrink-0 border rounded-lg overflow-hidden shadow-sm ${isDark ? 'border-zinc-700 bg-black/40' : 'border-gray-300 bg-gray-100'}`}><div className={`absolute inset-0 ${isDark ? 'bg-zinc-800/50' : 'bg-gray-200'}`} /></div>
+               ))}
+           </div>
        </div>
     );
 });
@@ -264,9 +282,9 @@ export const LocalMediaStack: React.FC<{ data: NodeData, updateData: any, curren
         );
     }
     
-    // Improved detection: Prioritize strict node type check, then file extension. 
+    // Improved detection: Prioritize strict node type check, then file extension.
     // Removed naive .includes('video') which triggers on random signatures in URLs.
-    const isVideo = data.type === 'TEXT_TO_VIDEO' || (currentSrc && /\.(mp4|webm|mov|mkv)(\?|$)/i.test(currentSrc));
+    const isVideo = data.type === 'TEXT_TO_VIDEO' || data.type === 'START_END_TO_VIDEO' || (currentSrc && /\.(mp4|webm|mov|mkv)(\?|$)/i.test(currentSrc));
 
     return (
         <>

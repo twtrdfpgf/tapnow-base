@@ -1,5 +1,5 @@
 
-import { VideoModelRules, ModelConfig } from "../types";
+import type { VideoModelRules, ModelConfig } from "../types";
 import { generateGenericVideo, generateVeo3Video, generateGrokVideo, generateSoraVideo } from "./veo";
 import { generateMinimaxVideo } from "./minimax";
 import { generateSeedanceVideo } from "./seedance";
@@ -25,9 +25,69 @@ const generateChatVideo = async (config: ModelConfig, prompt: string) => {
 // --- Model Specific Implementations ---
 
 export const Sora2Handler = {
-    rules: { resolutions: ['720p', '1080p'], durations: ['10s', '15s'], ratios: ['16:9', '9:16'], maxInputImages: 2 },
+    rules: { resolutions: ['720p', '1080p'], durations: ['4s', '8s', '12s'], ratios: ['16:9', '9:16'], maxInputImages: 2 },
     generate: async (cfg: ModelConfig, prompt: string, params: any) => {
-        return await generateSoraVideo(cfg, prompt, params.aspectRatio, params.resolution, params.duration, params.inputImages);
+        const { inputImages = [], aspectRatio = '16:9', resolution = '720p', duration = '8s' } = params;
+        
+        // 映射 duration 到 Sora 的参数格式
+        const durationMap: Record<string, string> = { '4s': '4', '8s': '8', '12s': '12' };
+        const durationValue = durationMap[duration] || '8';
+        
+        // 映射分辨率到 Sora 的 size 参数
+        const sizeMap: Record<string, string> = {
+            '16:9-720p': '1280x720',
+            '16:9-1080p': '1792x1024',
+            '9:16-720p': '720x1280',
+            '9:16-1080p': '1024x1792'
+        };
+        const sizeKey = `${aspectRatio}-${resolution}`;
+        const sizeValue = sizeMap[sizeKey] || '1280x720';
+        
+        const messages: any[] = [];
+        
+        if (inputImages.length > 0) {
+            const content: any[] = [];
+            
+            // 添加提示词
+            content.push({ type: 'text', text: prompt || 'Generate a video from these images' });
+            
+            // 添加图片
+            inputImages.forEach((img: string) => {
+                content.push({ type: 'image_url', image_url: { url: img } });
+            });
+            messages.push({ role: 'user', content });
+        } else {
+            const effectivePrompt = prompt || 'Generate a video';
+            messages.push({ role: 'user', content: effectivePrompt });
+        }
+        
+        // 将参数放在 payload 的顶层
+        const payload: any = { 
+            model: cfg.modelId, 
+            messages, 
+            stream: false,
+            duration: durationValue,
+            size: sizeValue,
+            images: inputImages.length > 0 ? inputImages : undefined
+        };
+        
+        const url = constructUrl(cfg.baseUrl, cfg.endpoint);
+        console.log('[Sora 2] Request URL:', url);
+        console.log('[Sora 2] Duration input:', duration, '=> Duration value:', durationValue);
+        console.log('[Sora 2] Size key:', sizeKey, '=> Size value:', sizeValue);
+        console.log('[Sora 2] Payload:', JSON.stringify(payload, null, 2));
+        
+        const res = await fetchThirdParty(url, 'POST', payload, cfg, { timeout: 600000 });
+        
+        console.log('[Sora 2] Response:', JSON.stringify(res, null, 2));
+        
+        const content = res.choices?.[0]?.message?.content;
+        if (!content) {
+            console.error('[Sora 2] No content in response:', res);
+            throw new Error('No video URL returned from Sora 2');
+        }
+        
+        return content;
     }
 };
 
@@ -50,7 +110,9 @@ export const VeoFastHandler = {
             images = images.slice(0, 3);
         }
 
-        const newCfg = { ...cfg, modelId, endpoint: '/v1/video/create' };
+        // 使用用户配置的 endpoint，如果是默认值才使用 /v1/video/create
+        const endpoint = cfg.endpoint && cfg.endpoint !== '/v1/video/create' ? cfg.endpoint : '/v1/video/create';
+        const newCfg = { ...cfg, modelId, endpoint };
         return await generateVeo3Video(newCfg, prompt, params.aspectRatio, images);
     }
 };
@@ -73,7 +135,9 @@ export const VeoProHandler = {
             }
         }
 
-        const newCfg = { ...cfg, modelId, endpoint: '/v1/video/create' };
+        // 使用用户配置的 endpoint，如果是默认值才使用 /v1/video/create
+        const endpoint = cfg.endpoint && cfg.endpoint !== '/v1/video/create' ? cfg.endpoint : '/v1/video/create';
+        const newCfg = { ...cfg, modelId, endpoint };
         return await generateVeo3Video(newCfg, prompt, params.aspectRatio, images);
     }
 };

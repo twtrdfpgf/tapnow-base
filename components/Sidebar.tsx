@@ -1,52 +1,49 @@
-
 import React, { useState, useRef, useEffect, memo, useMemo } from 'react';
 import { Icons } from './Icons';
 import { NodeType, NodeData } from '../types';
 
 interface SidebarProps {
   onAddNode: (type: NodeType) => void;
-  onSaveWorkflow: () => void;
-  onLoadWorkflow: () => void;
   onNewWorkflow: () => void;
   onImportAsset: () => void;
-  onOpenSettings: (tab: string) => void;
-  onUpdateCanvasBg: (color: string) => void;
+  onOpenExportImport: () => void;
   nodes: NodeData[];
   onPreviewMedia: (url: string, type: 'image' | 'video') => void;
   isDark?: boolean;
 }
 
-type MenuCategory = 'ADD' | 'WORKFLOW' | 'HISTORY' | 'ASSETS' | 'SETTINGS' | null;
+type ActivePanel = 'ADD' | 'HISTORY' | 'PROJECT' | null;
 
-const HistoryItem = memo(({ node, type, onClick }: { node: NodeData, type: 'image' | 'video', onClick: () => void }) => {
+const HistoryItem = memo(({ node, type, onClick, isDark }: { node: NodeData, type: 'image' | 'video', onClick: () => void, isDark: boolean }) => {
     const stackCount = node.outputArtifacts?.length || 0;
     
     return (
         <div 
-           className="relative aspect-square rounded-lg overflow-hidden border border-zinc-800 cursor-pointer group bg-black"
+           className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer group ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}
            onClick={onClick}
         >
             {type === 'image' ? (
-                <img src={node.imageSrc} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" decoding="async"/>
+                <img src={node.imageSrc} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" decoding="async"/>
             ) : (
-                <div className="w-full h-full relative bg-black">
-                   <video src={node.videoSrc} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" muted preload="metadata" />
+                <div className="w-full h-full relative">
+                   <video src={node.videoSrc} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" muted preload="metadata" />
                    <div className="absolute inset-0 flex items-center justify-center">
-                       <Icons.Play size={16} className="text-white opacity-50 group-hover:opacity-100 drop-shadow-md"/>
+                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? 'bg-white/20' : 'bg-black/20'} backdrop-blur-sm`}>
+                           <Icons.Play size={14} className="text-white ml-0.5"/>
+                       </div>
                    </div>
                 </div>
             )}
             
             {stackCount > 1 && (
-                <div className="absolute top-1 right-1 bg-black/60 backdrop-blur-md text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border border-white/10 z-10 shadow-sm">
-                    <Icons.Layers size={8} className="text-cyan-400" />
-                    <span className="font-bold">{stackCount}</span>
+                <div className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-md flex items-center gap-1 ${isDark ? 'bg-black/60 text-white' : 'bg-white/80 text-gray-700'} backdrop-blur-sm`}>
+                    <Icons.Layers size={10} />
+                    <span className="font-semibold">{stackCount}</span>
                 </div>
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
-                <div className="text-[9px] text-white truncate font-medium">{node.title}</div>
-                <div className="text-[8px] text-zinc-400 truncate">{node.resolution || '1024x1024'}</div>
+            <div className={`absolute inset-x-0 bottom-0 p-2 ${isDark ? 'bg-gradient-to-t from-black/80 to-transparent' : 'bg-gradient-to-t from-white/90 to-transparent'}`}>
+                <div className={`text-[11px] truncate font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{node.title}</div>
             </div>
         </div>
     );
@@ -56,24 +53,23 @@ const HistoryItem = memo(({ node, type, onClick }: { node: NodeData, type: 'imag
            prev.node.imageSrc === next.node.imageSrc && 
            prev.node.videoSrc === next.node.videoSrc &&
            prev.node.title === next.node.title &&
+           prev.isDark === next.isDark &&
            (prev.node.outputArtifacts?.length || 0) === (next.node.outputArtifacts?.length || 0);
 });
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   onAddNode, 
-  onSaveWorkflow, 
-  onLoadWorkflow, 
   onNewWorkflow,
   onImportAsset,
-  onOpenSettings,
-  onUpdateCanvasBg,
+  onOpenExportImport,
   nodes,
   onPreviewMedia,
   isDark = true
 }) => {
-  const [activeMenu, setActiveMenu] = useState<MenuCategory>(null);
-  const [historyTab, setHistoryTab] = useState<'IMAGES' | 'VIDEOS'>('IMAGES');
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  const [historyTab, setHistoryTab] = useState<'image' | 'video'>('image');
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Deduplicate nodes for history display
   const uniqueNodes = useMemo(() => {
@@ -84,200 +80,312 @@ const Sidebar: React.FC<SidebarProps> = ({
       return Array.from(map.values());
   }, [nodes]);
 
-  // Close menu when clicking outside
+  const imageNodes = useMemo(() => 
+      uniqueNodes.filter(n => n.imageSrc && !n.isLoading), 
+  [uniqueNodes]);
+  
+  const videoNodes = useMemo(() => 
+      uniqueNodes.filter(n => n.videoSrc && !n.isLoading), 
+  [uniqueNodes]);
+
+  // Close panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setActiveMenu(null);
+      const target = event.target as Node;
+      if (
+        sidebarRef.current && 
+        !sidebarRef.current.contains(target) &&
+        panelRef.current &&
+        !panelRef.current.contains(target)
+      ) {
+        setActivePanel(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleMenu = (category: MenuCategory) => {
-    if (category === 'SETTINGS') {
-        setActiveMenu(null); // Close any open menu
-        onOpenSettings('API'); // Directly open modal
-    } else {
-        setActiveMenu(prev => prev === category ? null : category);
-    }
+  const togglePanel = (panel: ActivePanel) => {
+    setActivePanel(prev => prev === panel ? null : panel);
   };
 
-  // Theme Classes
-  const sidebarBg = isDark ? 'bg-[#1A1D21]/90 border-zinc-700/50' : 'bg-white/90 border-gray-200';
-  const menuBg = isDark ? 'bg-[#1A1D21] border-zinc-700' : 'bg-white border-gray-200';
-  const itemHover = isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100';
-  const itemText = isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-900';
-  const itemActive = isDark ? 'bg-zinc-800 text-cyan-400' : 'bg-cyan-50 text-cyan-600';
-  const dividerColor = isDark ? 'bg-zinc-800' : 'bg-gray-200';
-  const titleColor = isDark ? 'text-gray-500 border-zinc-800' : 'text-gray-400 border-gray-100';
-  
-  const SidebarItem = ({ 
+  // 样式
+  const bgMain = isDark ? 'bg-[#18181b]/95' : 'bg-white/95';
+  const borderColor = isDark ? 'border-zinc-800' : 'border-gray-200';
+  const textMain = isDark ? 'text-white' : 'text-gray-900';
+  const textSub = isDark ? 'text-gray-400' : 'text-gray-500';
+  const textMuted = isDark ? 'text-gray-600' : 'text-gray-400';
+  const hoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100';
+  const activeBg = isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600';
+
+  // 侧边栏按钮
+  const SidebarButton = ({ 
     icon: Icon, 
-    category, 
-    tooltip 
+    panel, 
+    tooltip,
+    onClick
   }: { 
     icon: any, 
-    category: MenuCategory, 
-    tooltip: string 
-  }) => (
-    <div 
-        className={`relative flex items-center justify-center w-10 h-10 mb-3 rounded-xl cursor-pointer transition-all duration-200 group
-          ${activeMenu === category ? itemActive : itemText + ' ' + itemHover}
-        `}
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleMenu(category);
+    panel?: ActivePanel, 
+    tooltip: string,
+    onClick?: () => void
+  }) => {
+    const isActive = panel && activePanel === panel;
+    
+    return (
+      <button 
+        className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group ${
+          isActive ? activeBg : `${textSub} ${hoverBg}`
+        }`}
+        onClick={() => {
+          if (onClick) {
+            onClick();
+          } else if (panel) {
+            togglePanel(panel);
+          }
         }}
-    >
-      <Icon size={20} />
-      {activeMenu !== category && (
-        <div className={`absolute left-full ml-3 px-2 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 border shadow-xl text-xs ${isDark ? 'bg-zinc-900 text-gray-200 border-zinc-700' : 'bg-white text-gray-800 border-gray-200'}`}>
+      >
+        <Icon size={20} />
+        <div className={`absolute left-full ml-3 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 ${
+          isDark ? 'bg-zinc-900 text-white border border-zinc-700' : 'bg-white text-gray-900 border border-gray-200 shadow-lg'
+        }`}>
           {tooltip}
         </div>
-      )}
-    </div>
-  );
-
-  const SubMenuItem = ({ 
-    icon: Icon, 
-    label, 
-    onClick, 
-    desc,
-    active
-  }: { 
-    icon: any, 
-    label: string, 
-    onClick: () => void, 
-    desc?: string,
-    active?: boolean
-  }) => (
-    <div 
-      className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors w-full group ${active ? (isDark ? 'bg-zinc-800/80' : 'bg-gray-100') : itemHover}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-    >
-      <div className={`w-8 h-8 flex items-center justify-center border rounded-lg shadow-sm shrink-0 transition-colors ${active ? 'text-cyan-400 border-cyan-500/30' : (isDark ? 'bg-zinc-800 border-zinc-700 text-gray-400 group-hover:text-cyan-400' : 'bg-gray-50 border-gray-200 text-gray-400 group-hover:text-cyan-600')}`}>
-        <Icon size={16} />
-      </div>
-      <div className="flex flex-col min-w-[120px]">
-        <span className={`text-sm font-medium ${active ? (isDark ? 'text-white' : 'text-black') : (isDark ? 'text-gray-300 group-hover:text-white' : 'text-gray-700 group-hover:text-black')}`}>{label}</span>
-        {desc && <span className="text-[10px] text-gray-500 group-hover:text-gray-400">{desc}</span>}
-      </div>
-      {active && <Icons.ChevronRight size={14} className="ml-auto text-cyan-500" />}
-    </div>
-  );
-
-  const renderHistoryContent = () => {
-    const imageNodes = uniqueNodes.filter(n => n.imageSrc && !n.isLoading && (n.type === NodeType.TEXT_TO_IMAGE || n.type === NodeType.ORIGINAL_IMAGE));
-    const videoNodes = uniqueNodes.filter(n => n.videoSrc && !n.isLoading && n.type === NodeType.TEXT_TO_VIDEO);
-
-    const items = historyTab === 'IMAGES' ? imageNodes : videoNodes;
-    const tabActive = isDark ? 'bg-zinc-700 text-white' : 'bg-white text-gray-900 shadow-sm border border-gray-200';
-    const tabInactive = isDark ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-500 hover:text-gray-700';
-
-    return (
-        <div className="w-full flex flex-col gap-3">
-             <div className={`flex rounded-lg p-1 border ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-gray-200'}`}>
-                 <button className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${historyTab === 'IMAGES' ? tabActive : tabInactive}`} onClick={() => setHistoryTab('IMAGES')}>IMAGES</button>
-                 <button className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${historyTab === 'VIDEOS' ? tabActive : tabInactive}`} onClick={() => setHistoryTab('VIDEOS')}>VIDEOS</button>
-             </div>
-
-             <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1 content-start">
-                 {items.length === 0 && (
-                     <div className="col-span-2 text-center py-6 text-[10px] text-zinc-600">
-                         No generated {historyTab.toLowerCase()} yet.
-                     </div>
-                 )}
-                 {items.map(node => (
-                     <HistoryItem 
-                        key={node.id} 
-                        node={node} 
-                        type={historyTab === 'IMAGES' ? 'image' : 'video'} 
-                        onClick={() => onPreviewMedia((historyTab === 'IMAGES' ? node.imageSrc : node.videoSrc) || '', historyTab === 'IMAGES' ? 'image' : 'video')}
-                     />
-                 ))}
-             </div>
-        </div>
+      </button>
     );
   };
 
-  const renderSubMenu = () => {
-    if (!activeMenu || activeMenu === 'SETTINGS') return null;
+  // 渲染添加节点面板
+  const renderAddPanel = () => {
+    const NodeButton = ({ icon: Icon, label, description, type, color }: { icon: any, label: string, description: string, type: NodeType, color: string }) => (
+      <button
+        onClick={() => { onAddNode(type); setActivePanel(null); }}
+        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all group ${
+          isDark 
+            ? 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50' 
+            : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+        }`}
+      >
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+          <Icon size={20} />
+        </div>
+        <div className="flex-1 text-left">
+          <div className={`text-sm font-semibold ${textMain}`}>{label}</div>
+          <div className={`text-[11px] ${textMuted}`}>{description}</div>
+        </div>
+        <Icons.ChevronRight size={16} className={`${textMuted} group-hover:translate-x-0.5 transition-transform`} />
+      </button>
+    );
 
+    return (
+      <div className="space-y-2">
+        <div className={`text-[10px] font-bold uppercase tracking-wider ${textMuted}`}>生成节点</div>
+        <div className="space-y-2">
+          <NodeButton 
+            icon={Icons.Image} 
+            label="生图" 
+            description="文本/图片生成图片"
+            type={NodeType.TEXT_TO_IMAGE} 
+            color={isDark ? 'bg-cyan-500/15 text-cyan-400' : 'bg-cyan-100 text-cyan-600'} 
+          />
+          <NodeButton 
+            icon={Icons.Video} 
+            label="生视频" 
+            description="文本/图片生成视频"
+            type={NodeType.TEXT_TO_VIDEO} 
+            color={isDark ? 'bg-purple-500/15 text-purple-400' : 'bg-purple-100 text-purple-600'} 
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染项目面板
+  const renderProjectPanel = () => (
+    <div className="space-y-2">
+      <button
+        onClick={() => { onNewWorkflow(); setActivePanel(null); }}
+        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${hoverBg}`}
+      >
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+          <Icons.FilePlus size={18} />
+        </div>
+        <div className="text-left">
+          <div className={`text-sm font-medium ${textMain}`}>新建项目</div>
+          <div className={`text-[11px] ${textMuted}`}>创建空白画布</div>
+        </div>
+      </button>
+      
+      <button
+        onClick={() => { onOpenExportImport(); setActivePanel(null); }}
+        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${hoverBg}`}
+      >
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+          <Icons.FolderOpen size={18} />
+        </div>
+        <div className="text-left">
+          <div className={`text-sm font-medium ${textMain}`}>导出 / 导入</div>
+          <div className={`text-[11px] ${textMuted}`}>项目文件管理</div>
+        </div>
+      </button>
+    </div>
+  );
+
+  // 渲染面板内容
+  const renderPanel = () => {
+    if (!activePanel) return null;
+
+    // 生成历史面板 - 独立的大面板
+    if (activePanel === 'HISTORY') {
+      return (
+        <div 
+          ref={panelRef}
+          className={`fixed left-[76px] top-4 bottom-4 w-80 ${bgMain} backdrop-blur-xl border ${borderColor} rounded-2xl z-[190] flex flex-col shadow-2xl animate-in slide-in-from-left-2 duration-200`}
+        >
+          {/* Header */}
+          <div className={`px-5 py-4 border-b ${borderColor} flex items-center justify-between shrink-0`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                <Icons.Clock size={18} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+              </div>
+              <h3 className={`text-base font-bold ${textMain}`}>生成历史</h3>
+            </div>
+            <button 
+              onClick={() => setActivePanel(null)}
+              className={`p-2 rounded-lg ${hoverBg} ${textSub}`}
+            >
+              <Icons.X size={18} />
+            </button>
+          </div>
+          
+          {/* Tabs */}
+          <div className={`px-4 pt-4 shrink-0`}>
+            <div className={`flex p-1 rounded-xl ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}>
+              <button 
+                className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  historyTab === 'image' 
+                    ? (isDark ? 'bg-zinc-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') 
+                    : textSub
+                }`}
+                onClick={() => setHistoryTab('image')}
+              >
+                <Icons.Image size={14} />
+                图片 ({imageNodes.length})
+              </button>
+              <button 
+                className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  historyTab === 'video' 
+                    ? (isDark ? 'bg-zinc-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') 
+                    : textSub
+                }`}
+                onClick={() => setHistoryTab('video')}
+              >
+                <Icons.Video size={14} />
+                视频 ({videoNodes.length})
+              </button>
+            </div>
+          </div>
+
+          {/* Content Grid */}
+          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+            {(historyTab === 'image' ? imageNodes : videoNodes).length === 0 ? (
+              <div className={`flex flex-col items-center justify-center h-full ${textMuted}`}>
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-zinc-800' : 'bg-gray-100'}`}>
+                  {historyTab === 'image' ? <Icons.Image size={28} className="opacity-40" /> : <Icons.Video size={28} className="opacity-40" />}
+                </div>
+                <p className="text-sm font-medium">暂无生成历史</p>
+                <p className={`text-xs mt-1 ${textMuted}`}>生成的{historyTab === 'image' ? '图片' : '视频'}将显示在这里</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {(historyTab === 'image' ? imageNodes : videoNodes).map(node => (
+                  <HistoryItem 
+                    key={node.id} 
+                    node={node} 
+                    type={historyTab} 
+                    isDark={isDark}
+                    onClick={() => onPreviewMedia(
+                      (historyTab === 'image' ? node.imageSrc : node.videoSrc) || '', 
+                      historyTab
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer Stats */}
+          <div className={`px-4 py-3 border-t ${borderColor} shrink-0`}>
+            <div className={`flex items-center justify-between text-xs ${textMuted}`}>
+              <span>共 {(historyTab === 'image' ? imageNodes : videoNodes).length} 项</span>
+              <span>{historyTab === 'image' ? '图片' : '视频'}历史</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 其他面板 - 紧凑型
+    let title = '';
     let content = null;
-    let title = "";
 
-    switch (activeMenu) {
+    switch (activePanel) {
       case 'ADD':
-        title = "Add Node";
-        content = (
-          <>
-            <SubMenuItem icon={Icons.Video} label="Text to Video" desc="Veo 3, Sora 2" onClick={() => onAddNode(NodeType.TEXT_TO_VIDEO)} />
-            <SubMenuItem icon={Icons.Image} label="Text to Image" desc="Gemini 3, Imagen 3" onClick={() => onAddNode(NodeType.TEXT_TO_IMAGE)} />
-            <SubMenuItem icon={Icons.FileText} label="Creative Desc" desc="Prompt Assistant" onClick={() => onAddNode(NodeType.CREATIVE_DESC)} />
-          </>
-        );
+        title = '添加节点';
+        content = renderAddPanel();
         break;
-      case 'WORKFLOW':
-        title = "My Workflow";
-        content = (
-          <>
-            <SubMenuItem icon={Icons.FilePlus} label="New Workflow" onClick={onNewWorkflow} />
-            <SubMenuItem icon={Icons.FolderOpen} label="Open Workflow" onClick={onLoadWorkflow} />
-            <SubMenuItem icon={Icons.Save} label="Save Workflow" onClick={onSaveWorkflow} />
-          </>
-        );
-        break;
-      case 'HISTORY':
-        title = "History";
-        content = renderHistoryContent();
-        break;
-      case 'ASSETS':
-        title = "Assets";
-        content = (
-          <>
-            <SubMenuItem icon={Icons.Album} label="My Assets" onClick={() => {}} />
-            <SubMenuItem icon={Icons.Upload} label="Import Asset" onClick={onImportAsset} />
-          </>
-        );
+      case 'PROJECT':
+        title = '项目';
+        content = renderProjectPanel();
         break;
     }
 
     return (
-      <div className="absolute left-3 top-0 flex items-start">
-          <div className={`${menuBg} rounded-2xl p-3 flex flex-col gap-1 w-64 z-40 animate-in fade-in slide-in-from-left-2 shadow-2xl border`}>
-            <div className={`px-2 py-1 mb-2 border-b text-[10px] font-bold uppercase tracking-wider ${titleColor}`}>
-              {title}
-            </div>
-            {content}
-          </div>
+      <div 
+        ref={panelRef}
+        className={`fixed left-[76px] top-1/2 -translate-y-1/2 w-64 max-h-[80vh] ${bgMain} backdrop-blur-xl border ${borderColor} rounded-2xl z-[190] flex flex-col shadow-xl animate-in slide-in-from-left-2 duration-200`}
+      >
+        {/* Panel Header */}
+        <div className={`px-4 py-3 border-b ${borderColor} flex items-center justify-between shrink-0`}>
+          <h3 className={`text-sm font-bold ${textMain}`}>{title}</h3>
+          <button 
+            onClick={() => setActivePanel(null)}
+            className={`p-1.5 rounded-lg ${hoverBg} ${textSub}`}
+          >
+            <Icons.X size={16} />
+          </button>
+        </div>
+        
+        {/* Panel Content */}
+        <div className="flex-1 p-4 overflow-hidden">
+          {content}
+        </div>
       </div>
     );
   };
 
   return (
-    <div ref={menuRef} className="fixed left-4 top-1/2 -translate-y-1/2 z-[200] flex items-start">
-      {/* Main Bar */}
-      <div className={`${sidebarBg} backdrop-blur-md shadow-2xl border rounded-2xl p-2 flex flex-col items-center`}>
-        <div className={`w-8 h-1 rounded-full mb-4 ${isDark ? 'bg-zinc-700' : 'bg-gray-300'}`}></div>
+    <>
+      {/* Sidebar */}
+      <div 
+        ref={sidebarRef}
+        className={`fixed left-4 top-1/2 -translate-y-1/2 z-[200] ${bgMain} backdrop-blur-xl border ${borderColor} rounded-2xl p-2 flex flex-col items-center gap-1 shadow-xl`}
+      >
+        <SidebarButton icon={Icons.LayoutGrid} panel="ADD" tooltip="添加节点" />
         
-        <SidebarItem icon={Icons.Plus} category="ADD" tooltip="Add Node" />
-        <div className={`w-full h-px my-2 ${dividerColor}`} />
-        <SidebarItem icon={Icons.Folder} category="WORKFLOW" tooltip="Workflow" />
-        <SidebarItem icon={Icons.Clock} category="HISTORY" tooltip="History" />
-        <SidebarItem icon={Icons.Image} category="ASSETS" tooltip="Assets" />
-        <div className={`w-full h-px my-2 ${dividerColor}`} />
-        <SidebarItem icon={Icons.Settings} category="SETTINGS" tooltip="Settings" />
+        <div className={`w-8 h-px my-1 ${isDark ? 'bg-zinc-800' : 'bg-gray-200'}`} />
+        
+        <SidebarButton icon={Icons.Clock} panel="HISTORY" tooltip="生成历史" />
+        <SidebarButton icon={Icons.Upload} tooltip="导入素材" onClick={onImportAsset} />
+        
+        <div className={`w-8 h-px my-1 ${isDark ? 'bg-zinc-800' : 'bg-gray-200'}`} />
+        
+        <SidebarButton icon={Icons.Folder} panel="PROJECT" tooltip="项目" />
       </div>
 
-      <div className="relative">
-        {renderSubMenu()}
-      </div>
-    </div>
+      {/* Panel */}
+      {renderPanel()}
+    </>
   );
 };
 

@@ -6,7 +6,9 @@ import {
   FilePlus, FolderOpen, Save, Album, Key, Sliders, Database, ChevronRight, ChevronLeft,
   Film, Link, Crop, Camera, ScanFace, Monitor, Layers, Wand2, Check,
   BookOpen, ArrowRightLeft, Scan, User, Clapperboard, Play, Pause, Sparkles,
-  Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search
+  Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search, ImagePlus, AlertCircle, AlertTriangle,
+  Clapperboard as ClapperboardIcon, Frame, Images, Blend, Edit3, RefreshCw,
+  Eye, EyeOff, RotateCcw, Info
 } from 'lucide-react';
 
 export const Icons = {
@@ -15,5 +17,6 @@ export const Icons = {
   FilePlus, FolderOpen, Save, Album, Key, Sliders, Database, ChevronRight, ChevronLeft,
   Film, Link, Crop, Camera, ScanFace, Monitor, Layers, Wand2, Check,
   BookOpen, ArrowRightLeft, Scan, User, Clapperboard, Play, Pause, Sparkles,
-  Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search
+  Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search, ImagePlus, AlertCircle, AlertTriangle,
+  Frame, Images, Blend, Edit3, RefreshCw, Eye, EyeOff, RotateCcw, Info
 };

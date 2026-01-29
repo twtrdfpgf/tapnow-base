@@ -6,8 +6,12 @@ import BaseNode from './components/Nodes/BaseNode';
 import { NodeContent } from './components/Nodes/NodeContent';
 import { Icons } from './components/Icons';
 import { generateCreativeDescription, generateImage, generateVideo } from './services/geminiService';
+import { storageService } from './services/storageService';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { SettingsModal } from './components/Settings/SettingsModal';
+import { StorageModal } from './components/Settings/StorageModal';
+import { ExportImportModal } from './components/Settings/ExportImportModal';
+import { WelcomeModal, hasShownWelcome } from './components/Settings/WelcomeModal';
 
 const DEFAULT_NODE_WIDTH = 320;
 const DEFAULT_NODE_HEIGHT = 240; 
@@ -51,8 +55,16 @@ const CanvasWithSidebar: React.FC = () => {
   // New Workflow Dialog State
   const [showNewWorkflowDialog, setShowNewWorkflowDialog] = useState(false);
   
+  // Project Name State
+  const [projectName, setProjectName] = useState('未命名项目');
+  const [isEditingProjectName, setIsEditingProjectName] = useState(false);
+  
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isStorageOpen, setIsStorageOpen] = useState(false);
+  const [isExportImportOpen, setIsExportImportOpen] = useState(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(() => !hasShownWelcome());
+  const [storageDirName, setStorageDirName] = useState<string | null>(null);
 
   // History State (Persist deleted nodes that have content)
   const [deletedNodes, setDeletedNodes] = useState<NodeData[]>([]);
@@ -61,8 +73,38 @@ const CanvasWithSidebar: React.FC = () => {
       dragModeRef.current = dragMode;
   }, [dragMode]);
 
-  const [canvasBg, setCanvasBg] = useState('#0B0C0E');
+  // 清除 Sora 2 的旧配置（修复 endpoint 问题）
+  useEffect(() => {
+      if (typeof window !== 'undefined') {
+          try {
+              const sora2Key = `API_CONFIG_MODEL_Sora 2`;
+              const stored = localStorage.getItem(sora2Key);
+              if (stored) {
+                  const parsed = JSON.parse(stored);
+                  // 如果 endpoint 是旧的 chat completions，清除配置
+                  if (parsed.endpoint === '/v1/chat/completions') {
+                      localStorage.removeItem(sora2Key);
+                      console.log('[App] Cleared old Sora 2 config with old endpoint');
+                  }
+              }
+          } catch(e) {
+              // 忽略错误
+          }
+      }
+  }, []);
+
+  // Default to light theme (white)
+  const [canvasBg, setCanvasBg] = useState('#F5F7FA');
   const isDark = canvasBg === '#0B0C0E';
+  
+  // Sync body class for CSS variables
+  useEffect(() => {
+    if (isDark) {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+  }, [isDark]);
 
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -279,13 +321,35 @@ const CanvasWithSidebar: React.FC = () => {
 
     if (type === NodeType.ORIGINAL_IMAGE) {
         h = dataOverride?.height || 240;
-    } else if (type === NodeType.TEXT_TO_VIDEO) {
+    } else if (type === NodeType.TEXT_TO_VIDEO || type === NodeType.IMAGE_TO_VIDEO || type === NodeType.START_END_TO_VIDEO) {
         if (!dataOverride?.width) w = 400 * (16/9); 
         if (!dataOverride?.height) h = 400;
-    } else if (type === NodeType.TEXT_TO_IMAGE) {
+    } else if (type === NodeType.TEXT_TO_IMAGE || type === NodeType.IMAGE_TO_IMAGE) {
         if (!dataOverride?.width) w = 400;
         if (!dataOverride?.height) h = 400;
     }
+    
+    const getDefaultTitle = (t: NodeType) => {
+        switch (t) {
+            case NodeType.TEXT_TO_IMAGE: return '生图';
+            case NodeType.TEXT_TO_VIDEO: return '生视频';
+            case NodeType.CREATIVE_DESC: return '创意描述';
+            default: return `原始图片_${Date.now()}`;
+        }
+    };
+
+    const getDefaultModel = (t: NodeType) => {
+        switch (t) {
+            case NodeType.TEXT_TO_IMAGE:
+                return 'BananaPro';
+            case NodeType.TEXT_TO_VIDEO:
+                return 'Sora 2';
+            default:
+                return '';
+        }
+    };
+
+    const isVideoType = type === NodeType.TEXT_TO_VIDEO;
     
     const newNode: NodeData = {
       id: generateId(),
@@ -294,14 +358,11 @@ const CanvasWithSidebar: React.FC = () => {
       y,
       width: w,
       height: h, 
-      title: dataOverride?.title || (type === NodeType.TEXT_TO_IMAGE ? 'Text to Image' :
-             type === NodeType.TEXT_TO_VIDEO ? 'Text to Video' :
-             type === NodeType.CREATIVE_DESC ? 'Creative Description' : `Original Image_${Date.now()}`),
-      aspectRatio: dataOverride?.aspectRatio || (type === NodeType.TEXT_TO_VIDEO ? '16:9' : '1:1'),
-      model: dataOverride?.model || (type === NodeType.TEXT_TO_IMAGE ? 'BananaPro' : 
-             type === NodeType.TEXT_TO_VIDEO ? 'Sora2' : 'IMAGE'),
-      resolution: dataOverride?.resolution || (type === NodeType.TEXT_TO_VIDEO ? '720p' : '1k'),
-      duration: dataOverride?.duration || (type === NodeType.TEXT_TO_VIDEO ? '5s' : undefined),
+      title: dataOverride?.title || getDefaultTitle(type),
+      aspectRatio: dataOverride?.aspectRatio || (isVideoType ? '16:9' : '1:1'),
+      model: dataOverride?.model || getDefaultModel(type),
+      resolution: dataOverride?.resolution || (isVideoType ? '720p' : '1k'),
+      duration: dataOverride?.duration || (isVideoType ? '5s' : undefined),
       count: 1,
       prompt: dataOverride?.prompt || '',
       imageSrc: dataOverride?.imageSrc,
@@ -320,13 +381,36 @@ const CanvasWithSidebar: React.FC = () => {
       let w = DEFAULT_NODE_WIDTH;
       let h = DEFAULT_NODE_HEIGHT;
 
+      const isVideoType = type === NodeType.TEXT_TO_VIDEO;
+      const isImageGenType = type === NodeType.TEXT_TO_IMAGE;
+
       if (type === NodeType.ORIGINAL_IMAGE) {
           h = 240;
-      } else if (type === NodeType.TEXT_TO_VIDEO) {
+      } else if (isVideoType) {
           w = 400 * (16/9); h = 400;
-      } else if (type === NodeType.TEXT_TO_IMAGE) {
+      } else if (isImageGenType) {
           w = 400; h = 400;
       }
+
+      const getDefaultTitle = (t: NodeType) => {
+          switch (t) {
+              case NodeType.TEXT_TO_IMAGE: return '生图';
+              case NodeType.TEXT_TO_VIDEO: return '生视频';
+              case NodeType.CREATIVE_DESC: return '创意描述';
+              default: return `原始图片_${Date.now()}`;
+          }
+      };
+
+      const getDefaultModel = (t: NodeType) => {
+          switch (t) {
+              case NodeType.TEXT_TO_IMAGE:
+                  return 'BananaPro';
+              case NodeType.TEXT_TO_VIDEO:
+                  return 'Sora 2';
+              default:
+                  return '';
+          }
+      };
 
       const newNode: NodeData = {
           id: newId,
@@ -335,14 +419,11 @@ const CanvasWithSidebar: React.FC = () => {
           y: quickAddMenu.worldY - h / 2,
           width: w,
           height: h,
-          title: type === NodeType.TEXT_TO_IMAGE ? 'Text to Image' :
-                 type === NodeType.TEXT_TO_VIDEO ? 'Text to Video' :
-                 type === NodeType.CREATIVE_DESC ? 'Creative Description' : `Original Image_${Date.now()}`,
-          aspectRatio: type === NodeType.TEXT_TO_VIDEO ? '16:9' : '1:1',
-          model: type === NodeType.TEXT_TO_IMAGE ? 'BananaPro' : 
-                 type === NodeType.TEXT_TO_VIDEO ? 'Sora2' : 'IMAGE',
-          resolution: type === NodeType.TEXT_TO_VIDEO ? '720p' : '1k',
-          duration: type === NodeType.TEXT_TO_VIDEO ? '5s' : undefined,
+          title: getDefaultTitle(type),
+          aspectRatio: isVideoType ? '16:9' : '1:1',
+          model: getDefaultModel(type),
+          resolution: isVideoType ? '720p' : '1k',
+          duration: isVideoType ? '5s' : undefined,
           count: 1,
           prompt: '',
           outputArtifacts: []
@@ -351,33 +432,6 @@ const CanvasWithSidebar: React.FC = () => {
       setNodes(prev => [...prev, newNode]);
       setConnections(prev => [...prev, { id: generateId(), sourceId: quickAddMenu.sourceId, targetId: newId }]);
       setQuickAddMenu(null);
-  };
-
-  const handleToolbarAction = (nodeId: string, actionId: string) => {
-      updateNodeData(nodeId, { activeToolbarItem: actionId });
-      if (actionId === 'start_end') {
-          const videoNode = nodes.find(n => n.id === nodeId);
-          if (!videoNode) return;
-          const inputCount = connections.filter(c => c.targetId === nodeId).length;
-          if (inputCount === 0) {
-              const startNodeId = generateId();
-              const endNodeId = generateId();
-              const xOffset = 380;
-              const yOffset = 260;
-              const nodeWidth = 320;
-              const nodeHeight = 240; 
-              const startNode: NodeData = {
-                  id: startNodeId, type: NodeType.ORIGINAL_IMAGE, x: videoNode.x - xOffset, y: videoNode.y, width: nodeWidth, height: nodeHeight, 
-                  title: '首帧 (Start)', imageSrc: '', aspectRatio: '16:9', outputArtifacts: []
-              };
-              const endNode: NodeData = {
-                  id: endNodeId, type: NodeType.ORIGINAL_IMAGE, x: videoNode.x - xOffset, y: videoNode.y + yOffset, width: nodeWidth, height: nodeHeight,
-                  title: '尾帧 (End)', imageSrc: '', aspectRatio: '16:9', outputArtifacts: []
-              };
-              setNodes(prev => [...prev, startNode, endNode]);
-              setConnections(prev => [...prev, { id: generateId(), sourceId: startNodeId, targetId: nodeId }, { id: generateId(), sourceId: endNodeId, targetId: nodeId }]);
-          }
-      }
   };
 
   const handlePaste = useCallback(async (e: ClipboardEvent) => {
@@ -476,6 +530,8 @@ const CanvasWithSidebar: React.FC = () => {
             if (quickAddMenu) setQuickAddMenu(null);
             if (showNewWorkflowDialog) setShowNewWorkflowDialog(false);
             if (isSettingsOpen) setIsSettingsOpen(false);
+            if (isStorageOpen) setIsStorageOpen(false);
+            if (isExportImportOpen) setIsExportImportOpen(false);
         }
         if (e.code === 'Space') spacePressed.current = true;
     };
@@ -486,9 +542,20 @@ const CanvasWithSidebar: React.FC = () => {
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedNodeIds, selectedConnectionId, previewMedia, contextMenu, nodes, connections, quickAddMenu, showNewWorkflowDialog, isSettingsOpen, handleAlign]);
+  }, [selectedNodeIds, selectedConnectionId, previewMedia, contextMenu, nodes, connections, quickAddMenu, showNewWorkflowDialog, isSettingsOpen, isStorageOpen, isExportImportOpen, handleAlign]);
 
   useEffect(() => {
+    // Load storage directory name for the top-right indicator
+    const loadStorageInfo = async () => {
+        const name = await storageService.getDownloadDirectoryName();
+        setStorageDirName(name);
+    };
+    if (isStorageOpen === false) {
+        // Refresh when modal closes
+        loadStorageInfo();
+    }
+    loadStorageInfo();
+    
     const handleGlobalMouseUp = () => {
         if (dragModeRef.current !== 'NONE') {
             setDragMode('NONE');
@@ -501,7 +568,23 @@ const CanvasWithSidebar: React.FC = () => {
     };
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, []);
+  }, [isStorageOpen]);
+
+  const handleOpenStorageSettings = () => {
+      setIsStorageOpen(true);
+  };
+
+  const handleImportWorkflow = (data: { nodes: NodeData[], connections: Connection[], transform?: CanvasTransform, projectName?: string }) => {
+      // 保存当前有内容的节点到历史
+      const withContent = nodes.filter(n => n.imageSrc || n.videoSrc);
+      if (withContent.length > 0) setDeletedNodes(prev => [...prev, ...withContent]);
+      
+      setNodes(data.nodes);
+      setConnections(data.connections);
+      if (data.transform) setTransform(data.transform);
+      if (data.projectName) setProjectName(data.projectName);
+      setSelectedNodeIds(new Set());
+  };
 
   const updateNodeData = useCallback((id: string, updates: Partial<NodeData>) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
@@ -513,6 +596,9 @@ const CanvasWithSidebar: React.FC = () => {
     updateNodeData(nodeId, { isLoading: true });
     
     const inputs = getInputImages(node.id);
+    
+    // Debug: Log input images for troubleshooting
+    console.log(`[Generation] Node: ${node.title} (${node.type}), Input Images:`, inputs.length > 0 ? inputs.map(i => i.substring(0, 50) + '...') : 'None');
 
     try {
       if (node.type === NodeType.CREATIVE_DESC) {
@@ -520,17 +606,27 @@ const CanvasWithSidebar: React.FC = () => {
         updateNodeData(nodeId, { optimizedPrompt: res, isLoading: false });
       } else {
           let results: string[] = [];
+          
+          // Image generation
           if (node.type === NodeType.TEXT_TO_IMAGE) {
             results = await generateImage(
-                node.prompt || '', node.aspectRatio, node.model, node.resolution, node.count || 1, inputs 
+                node.prompt || '', node.aspectRatio, node.model, node.resolution, node.count || 1, inputs, node.promptOptimize 
             );
-          } else if (node.type === NodeType.TEXT_TO_VIDEO) {
-            let effectiveModel = node.model;
-            if (node.activeToolbarItem === 'start_end') {
-                effectiveModel = (effectiveModel || '') + '_FL';
-            }
+          }
+          // Video generation 
+          else if (node.type === NodeType.TEXT_TO_VIDEO) {
             results = await generateVideo(
-                node.prompt || '', inputs, node.aspectRatio, effectiveModel, node.resolution, node.duration, node.count || 1
+                node.prompt || '', inputs, node.aspectRatio, node.model, node.resolution, node.duration, node.count || 1, node.promptOptimize
+            );
+          }
+          // Start-End Frame to Video generation (首尾帧模式)
+          else if (node.type === NodeType.START_END_TO_VIDEO) {
+            // 添加 _FL 后缀来标识首尾帧模式
+            const modelWithFL = (node.model || 'Sora 2') + '_FL';
+            // 如果设置了 swapFrames，交换首尾帧顺序
+            const orderedInputs = node.swapFrames && inputs.length >= 2 ? [inputs[1], inputs[0]] : inputs;
+            results = await generateVideo(
+                node.prompt || '', orderedInputs, node.aspectRatio, modelWithFL, node.resolution, node.duration, node.count || 1, node.promptOptimize
             );
           }
 
@@ -541,16 +637,22 @@ const CanvasWithSidebar: React.FC = () => {
               const newArtifacts = [...results, ...currentArtifacts];
               
               const updates: Partial<NodeData> = { isLoading: false, outputArtifacts: newArtifacts };
-              if (node.type === NodeType.TEXT_TO_IMAGE) updates.imageSrc = results[0];
-              else if (node.type === NodeType.TEXT_TO_VIDEO) updates.videoSrc = results[0];
+              
+              // Set output based on node type
+              if (node.type === NodeType.TEXT_TO_IMAGE) {
+                  updates.imageSrc = results[0];
+              } else if (node.type === NodeType.TEXT_TO_VIDEO || node.type === NodeType.START_END_TO_VIDEO) {
+                  updates.videoSrc = results[0];
+              }
+              
               updateNodeData(nodeId, updates);
           } else {
-              throw new Error("No results returned");
+              throw new Error("未返回结果");
           }
       }
     } catch (e) {
       console.error(e);
-      alert(`Generation Failed: ${(e as Error).message}`);
+      alert(`生成失败: ${(e as Error).message}`);
       updateNodeData(nodeId, { isLoading: false });
     }
   };
@@ -560,7 +662,7 @@ const CanvasWithSidebar: React.FC = () => {
       if (!node) return;
       if (node.videoSrc) setPreviewMedia({ url: node.videoSrc, type: 'video' });
       else if (node.imageSrc) setPreviewMedia({ url: node.imageSrc, type: 'image' });
-      else alert("No content to preview.");
+      else alert("没有可预览的内容");
   };
   
   const handleHistoryPreview = (url: string, type: 'image' | 'video') => setPreviewMedia({ url, type });
@@ -572,8 +674,8 @@ const CanvasWithSidebar: React.FC = () => {
               const res = await fetch(node.imageSrc);
               const blob = await res.blob();
               await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob as Blob })]);
-              alert("Image copied to clipboard");
-          } catch (e) { console.error(e); alert("Failed to copy image"); }
+              alert("图片已复制到剪贴板");
+          } catch (e) { console.error(e); alert("复制图片失败"); }
       }
   };
 
@@ -613,12 +715,13 @@ const CanvasWithSidebar: React.FC = () => {
   };
 
   const handleSaveWorkflow = () => {
-    const workflowData = { nodes, connections, transform, version: "1.0" };
+    const workflowData = { nodes, connections, transform, projectName, version: "1.0" };
     const blob = new Blob([JSON.stringify(workflowData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `workflow-${Date.now()}.aistudio-flow`;
+    const safeName = projectName.replace(/[<>:"/\\|?*]/g, '_').trim() || '未命名项目';
+    link.download = `${safeName}.aistudio-flow`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -634,6 +737,7 @@ const CanvasWithSidebar: React.FC = () => {
     setNodes([]);
     setConnections([]);
     setTransform({ x: 0, y: 0, k: 1 });
+    setProjectName('未命名项目');
     setShowNewWorkflowDialog(false);
     setSelectedNodeIds(new Set());
     setSelectionBox(null);
@@ -650,6 +754,7 @@ const CanvasWithSidebar: React.FC = () => {
                 setNodes(data.nodes);
                 setConnections(data.connections);
                 if (data.transform) setTransform(data.transform);
+                if (data.projectName) setProjectName(data.projectName);
             }
         } catch (err) { console.error(err); alert("Invalid workflow file"); }
     };
@@ -669,6 +774,11 @@ const CanvasWithSidebar: React.FC = () => {
       try {
           const response = await fetch(url);
           const blob = await response.blob();
+          
+          // Try storage service first
+          const saved = await storageService.saveFile(blob, filename);
+          if (saved) return;
+
           const blobUrl = URL.createObjectURL(blob as Blob);
           const link = document.createElement('a');
           link.href = blobUrl;
@@ -691,23 +801,36 @@ const CanvasWithSidebar: React.FC = () => {
   const handleImportAsset = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-             const { width, height, ratio } = calculateImportDimensions(img.width, img.height);
-             const src = event.target?.result as string;
-             const rect = containerRef.current?.getBoundingClientRect();
-             if (rect) {
-                 const center = screenToWorld(rect.width / 2, rect.height / 2);
+    
+    const rect = containerRef.current?.getBoundingClientRect();
+    const center = rect ? screenToWorld(rect.width / 2, rect.height / 2) : { x: 0, y: 0 };
+    
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                 const { width, height, ratio } = calculateImportDimensions(img.width, img.height);
+                 const src = event.target?.result as string;
                  addNode(NodeType.ORIGINAL_IMAGE, center.x - width/2, center.y - height/2, {
                      width, height, imageSrc: src, aspectRatio: `${ratio}:1`, outputArtifacts: [src]
                  });
-             }
+            };
+            img.src = event.target?.result as string;
         };
-        img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+    } else if (file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => {
+            const { width, height, ratio } = calculateImportDimensions(video.videoWidth, video.videoHeight);
+            addNode(NodeType.ORIGINAL_IMAGE, center.x - width/2, center.y - height/2, {
+                width, height, videoSrc: url, title: file.name, aspectRatio: `${ratio}:1`, outputArtifacts: [url]
+            });
+        };
+        video.src = url;
+    }
     e.target.value = '';
   };
 
@@ -905,13 +1028,13 @@ const CanvasWithSidebar: React.FC = () => {
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowNewWorkflowDialog(false)}>
             <div className={`w-[400px] p-6 rounded-2xl shadow-2xl border flex flex-col gap-4 transform transition-all scale-100 ${isDark ? 'bg-[#1A1D21] border-zinc-700 text-gray-200' : 'bg-white border-gray-200 text-gray-800'}`} onClick={(e) => e.stopPropagation()}>
                 <div>
-                    <h3 className="text-lg font-bold flex items-center gap-2"><Icons.FilePlus size={20} className="text-cyan-500"/>Create New Workflow</h3>
-                    <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Do you want to save your current workflow before creating a new one? <br/>Any unsaved changes will be permanently lost.</p>
+                    <h3 className="text-lg font-bold flex items-center gap-2"><Icons.FilePlus size={20} className="text-blue-500"/>新建工作流</h3>
+                    <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>是否在创建新工作流之前保存当前工作流？<br/>任何未保存的更改将永久丢失。</p>
                 </div>
                 <div className={`flex justify-end gap-2 mt-2 pt-4 border-t ${isDark ? 'border-zinc-800' : 'border-gray-100'}`}>
-                    <button onClick={() => setShowNewWorkflowDialog(false)} className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${isDark ? 'hover:bg-zinc-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>Cancel</button>
-                    <button onClick={() => handleConfirmNew(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'}`}>Don't Save</button>
-                    <button onClick={() => handleConfirmNew(true)} className={`px-4 py-2 rounded-lg text-xs font-bold text-white transition-colors shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 ${isDark ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-cyan-500 hover:bg-cyan-400'}`}><Icons.Save size={14}/>Save & New</button>
+                    <button onClick={() => setShowNewWorkflowDialog(false)} className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${isDark ? 'hover:bg-zinc-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>取消</button>
+                    <button onClick={() => handleConfirmNew(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'}`}>不保存</button>
+                    <button onClick={() => handleConfirmNew(true)} className={`px-4 py-2 rounded-lg text-xs font-bold text-white transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-1.5 ${isDark ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'}`}><Icons.Save size={14}/>保存并新建</button>
                 </div>
             </div>
         </div>
@@ -921,36 +1044,95 @@ const CanvasWithSidebar: React.FC = () => {
   const renderContextMenu = () => {
     if (!contextMenu) return null;
     return (
-        <div className={`fixed z-50 border rounded-lg shadow-2xl py-1 min-w-[160px] flex flex-col ${isDark ? 'bg-[#1A1D21] border-zinc-700' : 'bg-white border-gray-200'}`} style={{ left: contextMenu.x, top: contextMenu.y }} onMouseDown={(e) => e.stopPropagation()}>
-            {contextMenu.type === 'NODE' && contextMenu.nodeId && (
-                <>
-                    <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => { performCopy(); setContextMenu(null); }}><Icons.Copy size={14}/> Copy</button>
-                    {contextMenu.nodeType === NodeType.ORIGINAL_IMAGE && <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => { triggerReplaceImage(contextMenu.nodeId!); setContextMenu(null); }}><Icons.Upload size={14}/> Replace Image</button>}
-                    <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => { if (contextMenu.nodeId) copyImageToClipboard(contextMenu.nodeId); setContextMenu(null); }}><Icons.Image size={14}/> Copy Image Data</button>
-                    <div className={`h-px my-1 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`}></div>
-                    <button className={`text-left px-3 py-2 text-xs text-red-400 transition-colors flex items-center gap-2 ${isDark ? 'hover:bg-zinc-800 hover:text-red-300' : 'hover:bg-red-50 hover:text-red-600'}`} onClick={() => { if (contextMenu.nodeId) deleteNode(contextMenu.nodeId); setContextMenu(null); }}><Icons.Trash2 size={14}/> Delete</button>
-                </>
-            )}
-            {contextMenu.type === 'CANVAS' && (
-                <>
-                     <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => { performPaste({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null); }} disabled={!internalClipboard}><Icons.Copy size={14}/> Paste</button>
-                    <div className={`h-px my-1 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`}></div>
-                    <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => { addNode(NodeType.TEXT_TO_IMAGE, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}><Icons.Image size={14}/> Add Text to Image</button>
-                    <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => { addNode(NodeType.TEXT_TO_VIDEO, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}><Icons.Video size={14}/> Add Text to Video</button>
-                </>
-            )}
+        <div className={`fixed z-50 border rounded-xl shadow-2xl py-2 min-w-[180px] flex flex-col backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 ${isDark ? 'bg-zinc-900/95 border-zinc-700/80' : 'bg-white/95 border-gray-200'}`} style={{ left: contextMenu.x, top: contextMenu.y }} onMouseDown={(e) => e.stopPropagation()}>
+            {contextMenu.type === 'NODE' && contextMenu.nodeId && (() => {
+                const menuItemClass = `text-left px-3 py-2 text-xs transition-all duration-150 flex items-center gap-2.5 rounded-md mx-1 ${isDark ? 'text-gray-300 hover:bg-zinc-800/80 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`;
+                const node = nodes.find(n => n.id === contextMenu.nodeId);
+                const canToggleVideoType = node?.type === NodeType.TEXT_TO_VIDEO || node?.type === NodeType.START_END_TO_VIDEO;
+                
+                return (
+                    <>
+                        <button className={menuItemClass} onClick={() => { performCopy(); setContextMenu(null); }}>
+                            <Icons.Copy size={14}/> 复制节点
+                        </button>
+                        {contextMenu.nodeType === NodeType.ORIGINAL_IMAGE && (
+                            <button className={menuItemClass} onClick={() => { triggerReplaceImage(contextMenu.nodeId!); setContextMenu(null); }}>
+                                <Icons.Upload size={14}/> 替换图片
+                            </button>
+                        )}
+                        {canToggleVideoType && (
+                            <button className={menuItemClass} onClick={() => { if (contextMenu.nodeId) { const newNode = nodes.find(n => n.id === contextMenu.nodeId); if (newNode) { const newType = newNode.type === NodeType.TEXT_TO_VIDEO ? NodeType.START_END_TO_VIDEO : NodeType.TEXT_TO_VIDEO; updateNodeData(contextMenu.nodeId, { type: newType, title: newType === NodeType.START_END_TO_VIDEO ? '首尾帧视频' : '生视频' }); } setContextMenu(null); } }}>
+                                <Icons.RefreshCw size={14}/> {node?.type === NodeType.TEXT_TO_VIDEO ? '切换为首尾帧模式' : '切换为普通视频模式'}
+                            </button>
+                        )}
+                        <button className={menuItemClass} onClick={() => { if (contextMenu.nodeId) copyImageToClipboard(contextMenu.nodeId); setContextMenu(null); }}>
+                            <Icons.Image size={14}/> 复制图片数据
+                        </button>
+                        <div className={`h-px my-1.5 mx-2 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`}></div>
+                        <button className={`text-left px-3 py-2 text-xs transition-all duration-150 flex items-center gap-2.5 rounded-md mx-1 text-red-400 ${isDark ? 'hover:bg-red-500/10 hover:text-red-300' : 'hover:bg-red-50 hover:text-red-600'}`} onClick={() => { if (contextMenu.nodeId) deleteNode(contextMenu.nodeId); setContextMenu(null); }}>
+                            <Icons.Trash2 size={14}/> 删除
+                        </button>
+                    </>
+                );
+            })()}
+            {contextMenu.type === 'CANVAS' && (() => {
+                const menuItemClass = `text-left px-3 py-2 text-xs transition-all duration-150 flex items-center gap-2.5 rounded-md mx-1 ${isDark ? 'text-gray-300 hover:bg-zinc-800/80 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`;
+                return (
+                    <>
+                        <button className={`${menuItemClass} ${!internalClipboard ? 'opacity-40 cursor-not-allowed' : ''}`} onClick={() => { performPaste({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null); }} disabled={!internalClipboard}>
+                            <Icons.Copy size={14}/> 粘贴
+                        </button>
+                        <div className={`h-px my-1.5 mx-2 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`}></div>
+                        <div className={`px-3 py-1 text-[9px] font-semibold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>添加节点</div>
+                        <button className={menuItemClass} onClick={() => { addNode(NodeType.TEXT_TO_IMAGE, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}>
+                            <div className="w-5 h-5 rounded bg-cyan-500/10 flex items-center justify-center"><Icons.Image size={12} className="text-cyan-400"/></div>
+                            <span>生图</span>
+                        </button>
+                        <button className={menuItemClass} onClick={() => { addNode(NodeType.TEXT_TO_VIDEO, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}>
+                            <div className="w-5 h-5 rounded bg-purple-500/10 flex items-center justify-center"><Icons.Video size={12} className="text-purple-400"/></div>
+                            <span>生视频</span>
+                        </button>
+                        <button className={menuItemClass} onClick={() => { addNode(NodeType.START_END_TO_VIDEO, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}>
+                            <div className="w-5 h-5 rounded bg-emerald-500/10 flex items-center justify-center"><Icons.Frame size={12} className="text-emerald-400"/></div>
+                            <span>首尾帧视频</span>
+                        </button>
+                    </>
+                );
+            })()}
         </div>
     );
   };
 
   const renderQuickAddMenu = () => {
     if (!quickAddMenu) return null;
+    
+    const menuItemClass = `text-left px-3 py-2 text-xs transition-all duration-150 flex items-center gap-2.5 rounded-lg mx-1 ${isDark ? 'text-gray-300 hover:bg-zinc-800/80 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`;
+    const groupLabelClass = `px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-400'}`;
+    
     return (
-        <div className={`fixed z-50 border rounded-lg shadow-2xl py-1 min-w-[160px] flex flex-col animate-in fade-in zoom-in-95 duration-100 ${isDark ? 'bg-[#1A1D21] border-zinc-700' : 'bg-white border-gray-200'}`} style={{ left: quickAddMenu.x, top: quickAddMenu.y }} onMouseDown={(e) => e.stopPropagation()}>
-            <div className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b mb-1 ${isDark ? 'text-gray-500 border-zinc-800' : 'text-gray-400 border-gray-100'}`}>Add Node</div>
-            <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => handleQuickAddNode(NodeType.TEXT_TO_IMAGE)}><Icons.Image size={14} className="text-cyan-400"/> Text to Image</button>
-            <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => handleQuickAddNode(NodeType.TEXT_TO_VIDEO)}><Icons.Video size={14} className="text-cyan-400"/> Text to Video</button>
-            <button className={`text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${isDark ? 'text-gray-300 hover:bg-zinc-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-black'}`} onClick={() => handleQuickAddNode(NodeType.CREATIVE_DESC)}><Icons.FileText size={14} className="text-cyan-400"/> Creative Desc</button>
+        <div 
+            className={`fixed z-50 border rounded-xl shadow-2xl py-2 min-w-[200px] flex flex-col animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl ${isDark ? 'bg-zinc-900/95 border-zinc-700/80' : 'bg-white/95 border-gray-200'}`} 
+            style={{ left: quickAddMenu.x, top: quickAddMenu.y }} 
+            onMouseDown={(e) => e.stopPropagation()}
+        >
+            <div className={`px-3 pb-2 mb-1 text-[11px] font-semibold border-b ${isDark ? 'text-gray-200 border-zinc-800' : 'text-gray-800 border-gray-100'}`}>
+                连接到节点
+            </div>
+            
+            <div className={groupLabelClass}>生成</div>
+            <button className={menuItemClass} onClick={() => handleQuickAddNode(NodeType.TEXT_TO_IMAGE)}>
+                <div className="w-6 h-6 rounded-md bg-cyan-500/10 flex items-center justify-center"><Icons.Image size={14} className="text-cyan-400"/></div>
+                <span>生图</span>
+            </button>
+            <button className={menuItemClass} onClick={() => handleQuickAddNode(NodeType.TEXT_TO_VIDEO)}>
+                <div className="w-6 h-6 rounded-md bg-purple-500/10 flex items-center justify-center"><Icons.Video size={14} className="text-purple-400"/></div>
+                <span>生视频</span>
+            </button>
+            <button className={menuItemClass} onClick={() => handleQuickAddNode(NodeType.START_END_TO_VIDEO)}>
+                <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center"><Icons.Frame size={14} className="text-emerald-400"/></div>
+                <span>首尾帧视频</span>
+            </button>
+            
         </div>
     );
   };
@@ -961,23 +1143,44 @@ const CanvasWithSidebar: React.FC = () => {
 
   return (
     <div className="w-full h-screen overflow-hidden flex relative font-sans text-gray-800">
-        <ThemeSwitcher isDark={isDark} onToggle={toggleTheme} />
-        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} isDark={isDark} />
+        <WelcomeModal
+            isOpen={isWelcomeOpen}
+            onClose={() => setIsWelcomeOpen(false)}
+            isDark={isDark}
+        />
+        <SettingsModal 
+            isOpen={isSettingsOpen} 
+            onClose={() => setIsSettingsOpen(false)} 
+            isDark={isDark} 
+        />
+        <StorageModal
+            isOpen={isStorageOpen}
+            onClose={() => setIsStorageOpen(false)}
+            isDark={isDark}
+        />
+        <ExportImportModal
+            isOpen={isExportImportOpen}
+            onClose={() => setIsExportImportOpen(false)}
+            isDark={isDark}
+            projectName={projectName}
+            onProjectNameChange={setProjectName}
+            nodes={nodes}
+            connections={connections}
+            transform={transform}
+            onImport={handleImportWorkflow}
+        />
 
         <Sidebar 
           onAddNode={addNode} 
-          onSaveWorkflow={handleSaveWorkflow}
-          onLoadWorkflow={() => workflowInputRef.current?.click()}
           onNewWorkflow={handleNewWorkflow}
           onImportAsset={() => assetInputRef.current?.click()}
-          onOpenSettings={() => setIsSettingsOpen(true)} 
-          onUpdateCanvasBg={setCanvasBg}
+          onOpenExportImport={() => setIsExportImportOpen(true)}
           nodes={[...nodes, ...deletedNodes]}
           onPreviewMedia={handleHistoryPreview}
           isDark={isDark}
         />
         <input type="file" ref={workflowInputRef} hidden accept=".aistudio-flow,.json" onChange={handleLoadWorkflow} />
-        <input type="file" ref={assetInputRef} hidden accept="image/*" onChange={handleImportAsset} />
+        <input type="file" ref={assetInputRef} hidden accept="image/*,video/*" onChange={handleImportAsset} />
         <input type="file" ref={replaceImageRef} hidden accept="image/*" onChange={handleReplaceImage} />
         <div 
             ref={containerRef}
@@ -995,33 +1198,162 @@ const CanvasWithSidebar: React.FC = () => {
             onDrop={handleDrop}
         >
             <div className="absolute origin-top-left will-change-transform" style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})` }}>
-                <svg className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-visible z-0">
-                    {connections.map(conn => {
-                        const source = nodes.find(n => n.id === conn.sourceId);
-                        const target = nodes.find(n => n.id === conn.targetId);
-                        if (!source || !target) return null;
-                        const sx = source.x + source.width;
-                        const sy = source.y + source.height / 2;
-                        const tx = target.x;
-                        const ty = target.y + target.height / 2;
-                        const dist = Math.abs(tx - sx);
-                        const cp = Math.min(80, Math.max(24, dist / 2));
-                        const d = `M ${sx} ${sy} C ${sx + cp} ${sy}, ${tx - cp} ${ty}, ${tx} ${ty}`;
-                        const isSelected = selectedConnectionId === conn.id;
-                        return (
-                            <g key={conn.id} className="pointer-events-auto cursor-pointer group" onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); }}>
-                                <path d={d} stroke={isSelected ? (isDark ? "#ffffff" : "#000000") : (isDark ? "#52525b" : "#a1a1aa")} strokeWidth={2} fill="none" className="transition-colors duration-200 group-hover:stroke-cyan-500" />
-                                <path d={d} stroke="transparent" strokeWidth={20} fill="none" />
-                                <foreignObject x={(sx+tx)/2 - 12} y={(sy+ty)/2 - 12} width={24} height={24} className={`overflow-visible pointer-events-auto transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                    <button className={`w-6 h-6 flex items-center justify-center border rounded-full transition-all shadow-md focus:outline-none ${isDark ? 'bg-[#1A1D21] border-zinc-600 text-zinc-400 hover:text-red-500 hover:border-red-500' : 'bg-white border-gray-300 text-gray-400 hover:text-red-600 hover:border-red-600'}`} onClick={(e) => { e.stopPropagation(); e.preventDefault(); removeConnection(conn.id); }} title="Disconnect"><Icons.Scissors size={14}/></button>
+                {/* Connection Lines - Rendered as absolute positioned divs with SVG */}
+                {connections.map(conn => {
+                    const source = nodes.find(n => n.id === conn.sourceId);
+                    const target = nodes.find(n => n.id === conn.targetId);
+                    if (!source || !target) return null;
+                    
+                    // 源节点右侧输出端口位置
+                    const sx = source.x + source.width;
+                    const sy = source.y + source.height / 2;
+                    // 目标节点左侧输入端口位置
+                    const tx = target.x;
+                    const ty = target.y + target.height / 2;
+                    
+                    // 计算贝塞尔曲线控制点
+                    const dist = Math.abs(tx - sx);
+                    const cp = Math.max(50, dist * 0.4);
+                    
+                    // 计算SVG边界
+                    const minX = Math.min(sx, tx) - cp - 20;
+                    const minY = Math.min(sy, ty) - 20;
+                    const maxX = Math.max(sx, tx) + cp + 20;
+                    const maxY = Math.max(sy, ty) + 20;
+                    const svgWidth = maxX - minX;
+                    const svgHeight = maxY - minY;
+                    
+                    // 相对于SVG的坐标
+                    const relSx = sx - minX;
+                    const relSy = sy - minY;
+                    const relTx = tx - minX;
+                    const relTy = ty - minY;
+                    
+                    const d = `M ${relSx} ${relSy} C ${relSx + cp} ${relSy}, ${relTx - cp} ${relTy}, ${relTx} ${relTy}`;
+                    const isSelected = selectedConnectionId === conn.id;
+                    
+                    // 连接线颜色
+                    const lineColor = isSelected ? "#3b82f6" : (isDark ? "#6b7280" : "#9ca3af");
+                    
+                    return (
+                        <svg 
+                            key={conn.id}
+                            className="absolute pointer-events-none"
+                            style={{ 
+                                left: minX, 
+                                top: minY, 
+                                width: svgWidth, 
+                                height: svgHeight,
+                                zIndex: isSelected ? 20 : 5,
+                                overflow: 'visible'
+                            }}
+                        >
+                            {/* 点击区域 */}
+                            <path 
+                                d={d} 
+                                stroke="transparent" 
+                                strokeWidth={12} 
+                                fill="none" 
+                                className="pointer-events-auto cursor-pointer"
+                                onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); }}
+                            />
+                            {/* 主连接线 - 实线 */}
+                            <path 
+                                d={d} 
+                                stroke={lineColor}
+                                strokeWidth={isSelected ? 3 : 2} 
+                                fill="none" 
+                                strokeLinecap="round"
+                            />
+                            {/* 选中时的发光效果 */}
+                            {isSelected && (
+                                <path 
+                                    d={d} 
+                                    stroke="#3b82f6"
+                                    strokeWidth={6} 
+                                    fill="none" 
+                                    strokeLinecap="round"
+                                    opacity={0.3}
+                                />
+                            )}
+                            {/* 删除按钮 */}
+                            {isSelected && (
+                                <foreignObject 
+                                    x={(relSx + relTx) / 2 - 10} 
+                                    y={(relSy + relTy) / 2 - 10} 
+                                    width={20} 
+                                    height={20}
+                                    className="pointer-events-auto"
+                                >
+                                    <button 
+                                        className={`w-5 h-5 flex items-center justify-center rounded-full transition-all shadow-md ${isDark ? 'bg-zinc-800 border border-zinc-600 text-zinc-300 hover:text-red-400 hover:border-red-500' : 'bg-white border border-gray-300 text-gray-500 hover:text-red-600 hover:border-red-500'}`}
+                                        onClick={(e) => { e.stopPropagation(); removeConnection(conn.id); }} 
+                                        title="删除连接"
+                                    >
+                                        <Icons.X size={10}/>
+                                    </button>
                                 </foreignObject>
-                            </g>
-                        );
-                    })}
-                    {dragMode === 'CONNECT' && connectionStartRef.current && tempConnection && (
-                        <path d={`M ${nodes.find(n => n.id === connectionStartRef.current?.nodeId)!.x + nodes.find(n => n.id === connectionStartRef.current?.nodeId)!.width} ${nodes.find(n => n.id === connectionStartRef.current?.nodeId)!.y + nodes.find(n => n.id === connectionStartRef.current?.nodeId)!.height/2} L ${tempConnection.x} ${tempConnection.y}`} stroke={isDark ? "#52525b" : "#a1a1aa"} strokeWidth={2} strokeDasharray="5,5" fill="none"/>
-                    )}
-                </svg>
+                            )}
+                        </svg>
+                    );
+                })}
+                
+                {/* 拖拽连接预览线 */}
+                {dragMode === 'CONNECT' && connectionStartRef.current && tempConnection && (() => {
+                    const sourceNode = nodes.find(n => n.id === connectionStartRef.current?.nodeId);
+                    if (!sourceNode) return null;
+                    
+                    const sx = sourceNode.x + sourceNode.width;
+                    const sy = sourceNode.y + sourceNode.height / 2;
+                    const tx = tempConnection.x;
+                    const ty = tempConnection.y;
+                    
+                    const dist = Math.abs(tx - sx);
+                    const cp = Math.max(30, dist * 0.3);
+                    
+                    const minX = Math.min(sx, tx) - cp - 20;
+                    const minY = Math.min(sy, ty) - 20;
+                    const maxX = Math.max(sx, tx) + cp + 20;
+                    const maxY = Math.max(sy, ty) + 20;
+                    
+                    const relSx = sx - minX;
+                    const relSy = sy - minY;
+                    const relTx = tx - minX;
+                    const relTy = ty - minY;
+                    
+                    const d = `M ${relSx} ${relSy} C ${relSx + cp} ${relSy}, ${relTx - cp} ${relTy}, ${relTx} ${relTy}`;
+                    
+                    return (
+                        <svg 
+                            className="absolute pointer-events-none"
+                            style={{ 
+                                left: minX, 
+                                top: minY, 
+                                width: maxX - minX, 
+                                height: maxY - minY,
+                                zIndex: 100,
+                                overflow: 'visible'
+                            }}
+                        >
+                            {/* 虚线预览 */}
+                            <path 
+                                d={d} 
+                                stroke="#3b82f6" 
+                                strokeWidth={2} 
+                                fill="none" 
+                                strokeDasharray="6,4" 
+                                strokeLinecap="round"
+                            />
+                            {/* 目标点指示器 */}
+                            <circle 
+                                cx={relTx} 
+                                cy={relTy} 
+                                r={5} 
+                                fill="#3b82f6"
+                            />
+                        </svg>
+                    );
+                })()}
                 {nodes.map(node => (
                     <BaseNode
                         key={node.id}
@@ -1044,7 +1376,6 @@ const CanvasWithSidebar: React.FC = () => {
                             inputs={getInputImages(node.id)}
                             onMaximize={handleMaximize}
                             onDownload={handleDownload}
-                            onToolbarAction={handleToolbarAction}
                             onUpload={triggerReplaceImage}
                             isSelecting={dragMode === 'SELECT'}
                             onDelete={deleteNode}
@@ -1066,7 +1397,126 @@ const CanvasWithSidebar: React.FC = () => {
             {dragMode === 'SELECT' && selectionBox && (
                 <div className="fixed border border-cyan-500/50 bg-cyan-500/10 pointer-events-none z-50" style={{ left: containerRef.current!.getBoundingClientRect().left + selectionBox.x, top: containerRef.current!.getBoundingClientRect().top + selectionBox.y, width: selectionBox.w, height: selectionBox.h }}/>
             )}
-            <div className={`absolute bottom-6 right-6 border px-3 py-1 rounded-full shadow-md text-xs font-mono select-none pointer-events-none ${isDark ? 'bg-[#1A1D21] border-zinc-700 text-gray-400' : 'bg-white border-gray-200 text-gray-600'}`}>{Math.round(transform.k * 100)}%</div>
+            
+            {/* Top Left Project Name */}
+            <div className="absolute top-4 left-4 z-50">
+                <div className={`flex items-center gap-2.5 px-2 py-1.5 rounded-2xl backdrop-blur-xl border transition-all duration-300 ${
+                    isDark 
+                        ? 'bg-[#18181b]/90 border-zinc-800 shadow-xl' 
+                        : 'bg-white/90 border-gray-200 shadow-lg'
+                }`}>
+                    {/* Logo */}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                        isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                    }`}>
+                        <Icons.Sparkles size={16} />
+                    </div>
+                    
+                    {/* Project Name */}
+                    {isEditingProjectName ? (
+                        <input
+                            type="text"
+                            value={projectName}
+                            onChange={(e) => setProjectName(e.target.value)}
+                            onBlur={() => setIsEditingProjectName(false)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') setIsEditingProjectName(false);
+                                if (e.key === 'Escape') setIsEditingProjectName(false);
+                            }}
+                            autoFocus
+                            className={`w-36 px-2 py-1 rounded-lg text-sm font-medium border-0 outline-none bg-transparent ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                            }`}
+                            placeholder="项目名称..."
+                        />
+                    ) : (
+                        <button
+                            onClick={() => setIsEditingProjectName(true)}
+                            className={`text-sm font-medium max-w-[140px] truncate transition-colors ${
+                                isDark ? 'text-gray-200 hover:text-white' : 'text-gray-800 hover:text-black'
+                            }`}
+                        >
+                            {projectName}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Top Right Toolbar */}
+            <div className="absolute top-4 right-4 z-50">
+                <div className={`flex items-center gap-1 px-2 py-1.5 rounded-2xl backdrop-blur-xl border transition-all ${
+                    isDark 
+                        ? 'bg-[#18181b]/90 border-zinc-800 shadow-xl' 
+                        : 'bg-white/90 border-gray-200 shadow-lg'
+                }`}>
+                    {/* Zoom */}
+                    <span className={`px-3 py-1.5 text-sm font-medium tabular-nums ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {Math.round(transform.k * 100)}%
+                    </span>
+                    
+                    <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`} />
+                    
+                    {/* Download */}
+                    <button
+                        onClick={() => setIsExportImportOpen(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                            isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                    >
+                        <Icons.Download size={15} />
+                        <span>下载</span>
+                    </button>
+                    
+                    <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`} />
+                    
+                    {/* Theme */}
+                    <button
+                        onClick={() => toggleTheme(!isDark)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                            isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                    >
+                        {isDark ? <Icons.Moon size={15} /> : <Icons.Sun size={15} />}
+                        <span>{isDark ? '暗色' : '亮色'}</span>
+                    </button>
+                    
+                    {/* Clear */}
+                    <button
+                        onClick={handleNewWorkflow}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                            isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                    >
+                        <span>清空</span>
+                    </button>
+                    
+                    <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`} />
+                    
+                    {/* Storage */}
+                    <button
+                        onClick={handleOpenStorageSettings}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                            storageDirName 
+                                ? (isDark ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-emerald-600 hover:bg-emerald-50')
+                                : (isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                        }`}
+                    >
+                        <Icons.FolderOpen size={15} />
+                        <span>存储</span>
+                    </button>
+                    
+                    {/* API Settings */}
+                    <button
+                        onClick={() => setIsSettingsOpen(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                            isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                    >
+                        <Icons.Settings size={15} />
+                        <span>API 设置</span>
+                    </button>
+                </div>
+            </div>
             {renderContextMenu()}
             {renderQuickAddMenu()}
             {renderNewWorkflowDialog()}

@@ -1,5 +1,5 @@
 
-import { ImageModelRules, ModelConfig } from "../types";
+import type { ImageModelRules, ModelConfig } from "../types";
 import { generateBananaChatImage, generateBananaEdit } from "./banana";
 import { generateStandardImage, generateMjModal } from "./flux";
 import { calculateImageSize } from "./rules";
@@ -87,7 +87,7 @@ export const IMAGE_HANDLERS: Record<string, any> = {
     'Banana Pro Edit': BananaProEditHandler,
     'Banana': BananaHandler,
     'Flux2': Flux2Handler,
-    '即梦4.5': Jimeng45Handler,
+    '即梦 4.5': Jimeng45Handler,
     '即梦 4': Jimeng4Handler,
     'MJ': MJHandler,
     'Zimage': ZimageHandler,
