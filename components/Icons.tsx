@@ -8,9 +8,7 @@ import {
   BookOpen, ArrowRightLeft, Scan, User, Clapperboard, Play, Pause, Sparkles,
   Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search, ImagePlus, AlertCircle, AlertTriangle,
   Clapperboard as ClapperboardIcon, Frame, Images, Blend, Edit3, RefreshCw,
-  Eye, EyeOff, RotateCcw, Info, Hand, 
-  Keyboard, ZoomIn, ZoomOut, Maximize, Minimize, Move, PlusCircle, MinusCircle,
-  AlignVerticalSpaceBetween, AlignHorizontalSpaceBetween, ArrowUpDown
+  Eye, EyeOff, RotateCcw, Info
 } from 'lucide-react';
 
 export const Icons = {
@@ -20,10 +18,5 @@ export const Icons = {
   Film, Link, Crop, Camera, ScanFace, Monitor, Layers, Wand2, Check,
   BookOpen, ArrowRightLeft, Scan, User, Clapperboard, Play, Pause, Sparkles,
   Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search, ImagePlus, AlertCircle, AlertTriangle,
-  Frame, Images, Blend, Edit3, RefreshCw, Eye, EyeOff, RotateCcw, Info, 
-  Hand, AlignVerticalJustify: AlignVerticalSpaceBetween, AlignHorizontalJustifyCenter: AlignHorizontalSpaceBetween, Keyboard,
-  ZoomIn, ZoomOut, Maximize, Minimize, Move, PlusCircle, MinusCircle,
-  ArrowUpDown,
-  // History 图标（使用 Clock）
-  History: Clock
+  Frame, Images, Blend, Edit3, RefreshCw, Eye, EyeOff, RotateCcw, Info
 };
