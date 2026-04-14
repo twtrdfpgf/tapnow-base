@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { 
   Plus, Image as ImageIcon, Video, FileText, Settings, Folder, Clock, 
@@ -10,7 +11,7 @@ import {
   Clapperboard as ClapperboardIcon, Frame, Images, Blend, Edit3, RefreshCw,
   Eye, EyeOff, RotateCcw, Info, Hand, 
   Keyboard, ZoomIn, ZoomOut, Maximize, Minimize, Move, PlusCircle, MinusCircle,
-  AlignVerticalSpaceBetween, AlignHorizontalSpaceBetween, ArrowUpDown
+  ArrowUpDown, ArrowUp, ArrowDown, AlignVerticalSpaceBetween, AlignHorizontalSpaceBetween
 } from 'lucide-react';
 
 export const Icons = {
@@ -21,9 +22,9 @@ export const Icons = {
   BookOpen, ArrowRightLeft, Scan, User, Clapperboard, Play, Pause, Sparkles,
   Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search, ImagePlus, AlertCircle, AlertTriangle,
   Frame, Images, Blend, Edit3, RefreshCw, Eye, EyeOff, RotateCcw, Info, 
-  Hand, AlignVerticalJustify: AlignVerticalSpaceBetween, AlignHorizontalJustifyCenter: AlignHorizontalSpaceBetween, Keyboard,
+  Hand, AlignVerticalJustify, AlignHorizontalJustifyCenter, Keyboard,
   ZoomIn, ZoomOut, Maximize, Minimize, Move, PlusCircle, MinusCircle,
-  ArrowUpDown,
+  ArrowUpDown, ArrowUp, ArrowDown, AlignVerticalSpaceBetween, AlignHorizontalSpaceBetween,
   // History 图标（使用 Clock）
   History: Clock
 };
