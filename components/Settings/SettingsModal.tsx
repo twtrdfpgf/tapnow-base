@@ -364,14 +364,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                                 <label className={`text-xs font-medium uppercase tracking-wider ${textSub}`}>
                                     GLOBAL API KEY（可选，全局默认 KEY）
                                 </label>
-                                <input
-                                    type="password"
-                                    value={globalApiKey}
-                                    onChange={e => setGlobalApiKey(e.target.value)}
-                                    onBlur={saveGlobalConfig}
-                                    className={`w-full px-4 py-3 rounded-xl text-sm border ${borderColor} ${inputBg} ${textMain} outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all`}
-                                    placeholder="sk-..."
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={globalApiKey ? (globalApiKey === localStorage.getItem(GLOBAL_API_KEY_KEY + '_visible') ? 'text' : 'password') : 'password'}
+                                        value={globalApiKey}
+                                        onChange={e => setGlobalApiKey(e.target.value)}
+                                        onBlur={saveGlobalConfig}
+                                        className={`w-full px-4 py-3 pr-10 rounded-xl text-sm border ${borderColor} ${inputBg} ${textMain} outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all`}
+                                        placeholder="sk-..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const currentVisible = localStorage.getItem(GLOBAL_API_KEY_KEY + '_visible');
+                                            if (currentVisible === globalApiKey) {
+                                                localStorage.removeItem(GLOBAL_API_KEY_KEY + '_visible');
+                                            } else {
+                                                localStorage.setItem(GLOBAL_API_KEY_KEY + '_visible', globalApiKey);
+                                            }
+                                            setGlobalApiKey(globalApiKey + ' ');
+                                            setTimeout(() => setGlobalApiKey(globalApiKey), 0);
+                                        }}
+                                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                                        title="显示/隐藏 API Key"
+                                    >
+                                        {localStorage.getItem(GLOBAL_API_KEY_KEY + '_visible') === globalApiKey ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -494,13 +517,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                                                 {/* API KEY */}
                                                 <div className="flex items-center gap-4">
                                                     <label className={`w-24 text-xs font-medium uppercase ${textSub} shrink-0 text-right`}>API KEY</label>
-                                                    <input
-                                                        type="password"
-                                                        value={config.key || ''}
-                                                        onChange={e => updateConfig(key, 'key', e.target.value)}
-                                                        className={`flex-1 px-4 py-2.5 rounded-xl text-sm border ${borderColor} ${inputBg} ${textMain} outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all`}
-                                                        placeholder={globalApiKey ? '使用全局 KEY' : 'sk-...'}
-                                                    />
+                                                    <div className="flex-1 relative">
+                                                        <input
+                                                            type={config.key === localStorage.getItem('model_key_visible_' + key) ? 'text' : 'password'}
+                                                            value={config.key || ''}
+                                                            onChange={e => updateConfig(key, 'key', e.target.value)}
+                                                            className={`w-full px-4 py-2.5 pr-10 rounded-xl text-sm border ${borderColor} ${inputBg} ${textMain} outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all`}
+                                                            placeholder={globalApiKey ? '使用全局 KEY' : 'sk-...'}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const visibleKey = 'model_key_visible_' + key;
+                                                                const currentVisible = localStorage.getItem(visibleKey);
+                                                                if (currentVisible === config.key) {
+                                                                    localStorage.removeItem(visibleKey);
+                                                                } else {
+                                                                    localStorage.setItem(visibleKey, config.key || '');
+                                                                }
+                                                                updateConfig(key, 'key', (config.key || '') + ' ');
+                                                                setTimeout(() => updateConfig(key, 'key', config.key || ''), 0);
+                                                            }}
+                                                            className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                                                            title="显示/隐藏 API Key"
+                                                        >
+                                                            {localStorage.getItem('model_key_visible_' + key) === config.key ? (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                                            ) : (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 {/* BASE URL */}
