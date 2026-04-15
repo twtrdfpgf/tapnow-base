@@ -2,6 +2,7 @@
 export enum NodeType {
   TEXT_TO_IMAGE = 'TEXT_TO_IMAGE',
   TEXT_TO_VIDEO = 'TEXT_TO_VIDEO',
+  TEXT_TO_AUDIO = 'TEXT_TO_AUDIO',
   IMAGE_TO_IMAGE = 'IMAGE_TO_IMAGE',
   IMAGE_TO_VIDEO = 'IMAGE_TO_VIDEO',
   START_END_TO_VIDEO = 'START_END_TO_VIDEO',
@@ -22,6 +23,7 @@ export interface NodeData {
   prompt?: string;
   imageSrc?: string; // Result or Input (Active Selection)
   videoSrc?: string; // Result (Active Selection)
+  audioSrc?: string; // Result (Audio)
   outputArtifacts?: string[]; // History/Batch results
   isLoading?: boolean;
   isStackOpen?: boolean; // UI State for expanded gallery
@@ -29,11 +31,12 @@ export interface NodeData {
   // Configs
   aspectRatio?: string;
   resolution?: string;
-  duration?: string; // Video duration (5s, 10s, 15s)
+  duration?: string; // Video duration (5s, 10s, 15s) / Audio duration (30s, 60s, 120s)
   count?: number;
   model?: string;
   promptOptimize?: boolean; // Prompt Extension/Optimization switch
   swapFrames?: boolean; // For START_END_TO_VIDEO: swap first/last frame order
+  style?: string; // For TEXT_TO_AUDIO: music style
   
   // Creative Desc specific
   optimizedPrompt?: string;

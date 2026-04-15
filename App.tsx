@@ -403,6 +403,9 @@ const CanvasWithSidebar: React.FC = () => {
     } else if (type === NodeType.TEXT_TO_VIDEO || type === NodeType.IMAGE_TO_VIDEO || type === NodeType.START_END_TO_VIDEO) {
         if (!dataOverride?.width) w = 400 * (16/9); 
         if (!dataOverride?.height) h = 400;
+    } else if (type === NodeType.TEXT_TO_AUDIO) {
+        if (!dataOverride?.width) w = 320;
+        if (!dataOverride?.height) h = 280;
     } else if (type === NodeType.TEXT_TO_IMAGE || type === NodeType.IMAGE_TO_IMAGE) {
         if (!dataOverride?.width) w = 400;
         if (!dataOverride?.height) h = 400;
@@ -412,6 +415,7 @@ const CanvasWithSidebar: React.FC = () => {
         switch (t) {
             case NodeType.TEXT_TO_IMAGE: return '生图';
             case NodeType.TEXT_TO_VIDEO: return '生视频';
+            case NodeType.TEXT_TO_AUDIO: return '生音频';
             case NodeType.CREATIVE_DESC: return '创意描述';
             default: return `原始图片_${Date.now()}`;
         }
@@ -423,6 +427,8 @@ const CanvasWithSidebar: React.FC = () => {
                 return 'BananaPro';
             case NodeType.TEXT_TO_VIDEO:
                 return 'Sora 2';
+            case NodeType.TEXT_TO_AUDIO:
+                return 'Suno';
             default:
                 return '';
         }
@@ -727,6 +733,13 @@ const CanvasWithSidebar: React.FC = () => {
                 node.prompt || '', orderedInputs, node.aspectRatio, modelWithFL, node.resolution, node.duration, node.count || 1, node.promptOptimize
             );
           }
+          // Audio generation (音频生成)
+          else if (node.type === NodeType.TEXT_TO_AUDIO) {
+            const { generateAudio } = await import('./services/geminiService');
+            results = await generateAudio(
+                node.prompt || '', node.model, node.duration || '30s', node.style || 'pop'
+            );
+          }
 
           if (results.length > 0) {
               const currentArtifacts = node.outputArtifacts || [];
@@ -741,6 +754,8 @@ const CanvasWithSidebar: React.FC = () => {
                   updates.imageSrc = results[0];
               } else if (node.type === NodeType.TEXT_TO_VIDEO || node.type === NodeType.START_END_TO_VIDEO) {
                   updates.videoSrc = results[0];
+              } else if (node.type === NodeType.TEXT_TO_AUDIO) {
+                  updates.audioSrc = results[0];
               }
               
               updateNodeData(nodeId, updates);
@@ -1190,6 +1205,10 @@ const CanvasWithSidebar: React.FC = () => {
                             <div className="w-5 h-5 rounded bg-purple-500/10 flex items-center justify-center"><Icons.Video size={12} className="text-purple-400"/></div>
                             <span>生视频</span>
                         </button>
+                        <button className={menuItemClass} onClick={() => { addNode(NodeType.TEXT_TO_AUDIO, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}>
+                            <div className="w-5 h-5 rounded bg-green-500/10 flex items-center justify-center"><Icons.Music size={12} className="text-green-400"/></div>
+                            <span>生音频</span>
+                        </button>
                         <button className={menuItemClass} onClick={() => { addNode(NodeType.START_END_TO_VIDEO, contextMenu.worldX, contextMenu.worldY); setContextMenu(null); }}>
                             <div className="w-5 h-5 rounded bg-emerald-500/10 flex items-center justify-center"><Icons.Frame size={12} className="text-emerald-400"/></div>
                             <span>首尾帧视频</span>
@@ -1225,6 +1244,10 @@ const CanvasWithSidebar: React.FC = () => {
             <button className={menuItemClass} onClick={() => handleQuickAddNode(NodeType.TEXT_TO_VIDEO)}>
                 <div className="w-6 h-6 rounded-md bg-purple-500/10 flex items-center justify-center"><Icons.Video size={14} className="text-purple-400"/></div>
                 <span>生视频</span>
+            </button>
+            <button className={menuItemClass} onClick={() => handleQuickAddNode(NodeType.TEXT_TO_AUDIO)}>
+                <div className="w-6 h-6 rounded-md bg-green-500/10 flex items-center justify-center"><Icons.Music size={14} className="text-green-400"/></div>
+                <span>生音频</span>
             </button>
             <button className={menuItemClass} onClick={() => handleQuickAddNode(NodeType.START_END_TO_VIDEO)}>
                 <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center"><Icons.Frame size={14} className="text-emerald-400"/></div>

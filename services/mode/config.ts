@@ -88,6 +88,10 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   },
   
   'Grok video 3': { id: 'grok-video-3', name: 'Grok Video', type: 'VIDEO_GEN_STD', category: 'VIDEO', defaultEndpoint: '/v1/video/create', defaultQueryEndpoint: '/v1/video/query' },
+
+  // --- Audio Models ---
+  'Suno': { id: 'suno-ai', name: 'Suno', type: 'AUDIO_GEN', category: 'AUDIO', defaultEndpoint: '/v1/audio/generate' },
+  'Suno 3.5': { id: 'suno-ai-3.5', name: 'Suno 3.5', type: 'AUDIO_GEN', category: 'AUDIO', defaultEndpoint: '/v1/audio/generate' },
   
   ...customModels
 };

@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { NodeData, NodeType } from '../../types';
 import { TextToImageNode } from './TextToImageNode';
 import { TextToVideoNode } from './TextToVideoNode';
+import { TextToAudioNode } from './TextToAudioNode';
 import { StartEndToVideoNode } from './StartEndToVideoNode';
 import { OriginalImageNode } from './OriginalImageNode';
 import { CreativeDescNode } from './CreativeDescNode';
@@ -29,6 +30,8 @@ const NodeContentComponent: React.FC<NodeContentProps> = (props) => {
             return <TextToImageNode {...props} />;
         case NodeType.TEXT_TO_VIDEO:
             return <TextToVideoNode {...props} />;
+        case NodeType.TEXT_TO_AUDIO:
+            return <TextToAudioNode {...props} />;
         case NodeType.START_END_TO_VIDEO:
             return <StartEndToVideoNode {...props} />;
         case NodeType.ORIGINAL_IMAGE:

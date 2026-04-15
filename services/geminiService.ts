@@ -1,8 +1,10 @@
 
+
 import { MODEL_REGISTRY, getModelConfig, saveModelConfig, registerCustomModel, deleteModel, isCustomModel, getVisibleModels } from "./mode/config";
 import type { ModelConfig } from "./mode/config";
 import { IMAGE_HANDLERS, BananaHandler, Flux2Handler } from "./mode/image/configurations";
 import { VIDEO_HANDLERS, Sora2Handler, KlingStandardHandler } from "./mode/video/configurations";
+import { AUDIO_HANDLERS, SunoHandler } from "./mode/audio/configurations";
 import { constructUrl, fetchThirdParty } from "./mode/network";
 
 // Re-export for UI
@@ -101,6 +103,34 @@ export const generateVideo = async (
         return Array.isArray(result) ? result : [result];
     } catch (e) {
         console.error(`Error generating video with ${modelName}`, e);
+        throw e;
+    }
+};
+
+export const generateAudio = async (
+    prompt: string, 
+    modelName: string = "Suno",
+    duration: string = "30s",
+    style: string = "pop"
+): Promise<string[]> => {
+    let handler = AUDIO_HANDLERS[modelName];
+    
+    // Fallback for custom models
+    if (!handler) {
+        handler = SunoHandler;
+    }
+
+    const config = getModelConfig(modelName);
+    
+    // Debug: Log audio generation parameters
+    console.log(`[Audio Gen] Model: ${modelName}, Duration: ${duration}, Style: ${style}`);
+    console.log(`[Audio Gen] Config:`, { baseUrl: config.baseUrl, endpoint: config.endpoint, modelId: config.modelId, hasKey: !!config.key });
+    
+    try {
+        const result = await handler.generate(config, prompt, { duration, style });
+        return Array.isArray(result) ? result : [result];
+    } catch (e) {
+        console.error(`Error generating audio with ${modelName}`, e);
         throw e;
     }
 };
