@@ -53,6 +53,9 @@ const CanvasWithSidebar: React.FC = () => {
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [dragMode, setDragMode] = useState<DragMode | 'RESIZE_NODE' | 'SELECT'>('NONE');
   const dragModeRef = useRef(dragMode);
+
+  // Hover 状态 - 用于显示连线断开按钮
+  const [hoveredConnectionId, setHoveredConnectionId] = useState<string | null>(null);
   
   // 新增：当前模式状态（选择/移动）
   const [currentMode, setCurrentMode] = useState<'select' | 'pan'>('select');
@@ -1487,9 +1490,11 @@ const CanvasWithSidebar: React.FC = () => {
                     
                     const d = `M ${relSx} ${relSy} C ${relSx + cp} ${relSy}, ${relTx - cp} ${relTy}, ${relTx} ${relTy}`;
                     const isSelected = selectedConnectionId === conn.id;
-                    
+                    const isHovered = hoveredConnectionId === conn.id;
+                    const showDeleteBtn = isSelected || isHovered;
+
                     // 连接线颜色
-                    const lineColor = isSelected ? "#3b82f6" : (isDark ? "#6b7280" : "#9ca3af");
+                    const lineColor = isSelected ? "#3b82f6" : (isHovered ? "#ef4444" : (isDark ? "#6b7280" : "#9ca3af"));
                     
                     // 计算贝塞尔曲线上 t=0.5 的实际中点位置
                     const t = 0.5;
@@ -1501,25 +1506,27 @@ const CanvasWithSidebar: React.FC = () => {
                     const midY = Math.pow(1-t,3)*p0y + 3*Math.pow(1-t,2)*t*p1y + 3*(1-t)*Math.pow(t,2)*p2y + Math.pow(t,3)*p3y;
                     
                     return (
-                        <svg 
+                        <svg
                             key={conn.id}
                             className="absolute"
-                            style={{ 
-                                left: minX, 
-                                top: minY, 
-                                width: svgWidth, 
+                            style={{
+                                left: minX,
+                                top: minY,
+                                width: svgWidth,
                                 height: svgHeight,
                                 zIndex: isSelected ? 20 : 5,
                                 overflow: 'visible',
                                 pointerEvents: 'none'
                             }}
+                            onMouseEnter={() => setHoveredConnectionId(conn.id)}
+                            onMouseLeave={() => setHoveredConnectionId(null)}
                         >
                             {/* 点击区域 */}
-                            <path 
-                                d={d} 
-                                stroke="transparent" 
-                                strokeWidth={16} 
-                                fill="none" 
+                            <path
+                                d={d}
+                                stroke="transparent"
+                                strokeWidth={16}
+                                fill="none"
                                 style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                                 onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); }}
                             />
@@ -1544,39 +1551,36 @@ const CanvasWithSidebar: React.FC = () => {
                                     style={{ pointerEvents: 'none' }}
                                 />
                             )}
-                            {/* 删除按钮 - 使用纯 SVG 实现 */}
-                            {isSelected && (
-                                <g 
+                            {/* 删除按钮 - hover 或选中时显示 */}
+                            {showDeleteBtn && (
+                                <g
                                     style={{ pointerEvents: 'auto', cursor: 'pointer' }}
                                     onClick={(e) => { e.stopPropagation(); removeConnection(conn.id); }}
                                     onMouseDown={(e) => e.stopPropagation()}
                                 >
                                     {/* 按钮背景 */}
-                                    <circle 
-                                        cx={midX} 
-                                        cy={midY} 
-                                        r={10}
+                                    <circle
+                                        cx={midX}
+                                        cy={midY}
+                                        r={12}
                                         fill={isDark ? "#27272a" : "#ffffff"}
                                         stroke={isDark ? "#52525b" : "#d1d5db"}
                                         strokeWidth={1}
-                                        className="hover:stroke-red-500"
                                     />
                                     {/* X 图标 */}
-                                    <line 
-                                        x1={midX - 4} y1={midY - 4} 
-                                        x2={midX + 4} y2={midY + 4} 
-                                        stroke={isDark ? "#a1a1aa" : "#6b7280"}
+                                    <line
+                                        x1={midX - 5} y1={midY - 5}
+                                        x2={midX + 5} y2={midY + 5}
+                                        stroke="#ef4444"
                                         strokeWidth={2}
                                         strokeLinecap="round"
-                                        className="hover:stroke-red-500"
                                     />
-                                    <line 
-                                        x1={midX + 4} y1={midY - 4} 
-                                        x2={midX - 4} y2={midY + 4} 
-                                        stroke={isDark ? "#a1a1aa" : "#6b7280"}
+                                    <line
+                                        x1={midX + 5} y1={midY - 5}
+                                        x2={midX - 5} y2={midY + 5}
+                                        stroke="#ef4444"
                                         strokeWidth={2}
                                         strokeLinecap="round"
-                                        className="hover:stroke-red-500"
                                     />
                                 </g>
                             )}
