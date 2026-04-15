@@ -94,14 +94,14 @@ const CanvasWithSidebar: React.FC = () => {
       setDragMode('PAN');
   }, []);
   
-  // 缩放控制
+  // 缩放控制 - 扩大范围 0.2x 到 5x
   const handleZoomIn = useCallback(() => {
-      const newK = Math.min(transform.k + 0.1, 2);
+      const newK = Math.min(transform.k + 0.1, 5);
       setTransform(prev => ({ ...prev, k: newK }));
   }, [transform.k]);
   
   const handleZoomOut = useCallback(() => {
-      const newK = Math.max(transform.k - 0.1, 0.4);
+      const newK = Math.max(transform.k - 0.1, 0.2);
       setTransform(prev => ({ ...prev, k: newK }));
   }, [transform.k]);
   
@@ -972,7 +972,7 @@ const CanvasWithSidebar: React.FC = () => {
     const zoomIntensity = 0.1;
     const direction = e.deltaY > 0 ? -1 : 1;
     let newK = transform.k + direction * zoomIntensity;
-    newK = Math.min(Math.max(0.4, newK), 2); 
+    newK = Math.min(Math.max(0.2, newK), 5); // 扩大缩放范围到 0.2x - 5x
     const rect = containerRef.current!.getBoundingClientRect();
     const worldX = (e.clientX - rect.left - transform.x) / transform.k;
     const worldY = (e.clientY - rect.top - transform.y) / transform.k;
@@ -1683,7 +1683,23 @@ const CanvasWithSidebar: React.FC = () => {
             {dragMode === 'SELECT' && selectionBox && (
                 <div className="fixed border border-cyan-500/50 bg-cyan-500/10 pointer-events-none z-50" style={{ left: containerRef.current!.getBoundingClientRect().left + selectionBox.x, top: containerRef.current!.getBoundingClientRect().top + selectionBox.y, width: selectionBox.w, height: selectionBox.h }}/>
             )}
-            
+
+            {/* Canvas Help Hint - Show when zoomed out */}
+            {transform.k < 0.5 && (
+                <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-xs backdrop-blur-xl border z-50 ${
+                    isDark ? 'bg-zinc-800/90 border-zinc-700 text-gray-400' : 'bg-white/90 border-gray-200 text-gray-500'
+                }`}>
+                    按住鼠标中键或空格键拖动画布 · 滚轮缩放
+                </div>
+            )}
+
+            {/* Current Zoom Indicator */}
+            <div className={`absolute bottom-4 right-4 px-3 py-1.5 rounded-lg text-xs backdrop-blur-xl border z-50 ${
+                isDark ? 'bg-zinc-800/90 border-zinc-700 text-gray-400' : 'bg-white/90 border-gray-200 text-gray-500'
+            }`}>
+                {Math.round(transform.k * 100)}%
+            </div>
+
             {/* Top Left Project Name */}
             <div className="absolute top-4 left-4 z-50">
                 <div className={`flex items-center gap-2.5 px-2 py-1.5 rounded-2xl backdrop-blur-xl border transition-all duration-300 ${
