@@ -8,115 +8,36 @@ interface AIPanelProps {
 }
 
 // AI 模型配置
-type AIModel = 'gpt-4o' | 'gpt-4o-mini' | 'claude-3-5-sonnet' | 'claude-3-7-sonnet' | 'glm-4' | 'glm-4v';
+type AIModel = 'gpt-4o' | 'gpt-4o-mini' | 'claude-3-5-sonnet' | 'claude-3-7-sonnet' | 'glm-4' | 'glm-4v' | 'deepseek-chat';
 
 interface ModelInfo {
     id: AIModel;
     name: string;
-    platform: 'openai' | 'anthropic' | 'zhipu';
+    defaultUrl: string;
+    defaultModel: string;
 }
 
 const MODELS: ModelInfo[] = [
-    { id: 'gpt-4o', name: 'GPT-4o', platform: 'openai' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o mini', platform: 'openai' },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5', platform: 'anthropic' },
-    { id: 'claude-3-7-sonnet', name: 'Claude 3.7', platform: 'anthropic' },
-    { id: 'glm-4', name: 'GLM-4', platform: 'zhipu' },
-    { id: 'glm-4v', name: 'GLM-4V', platform: 'zhipu' },
+    { id: 'gpt-4o', name: 'GPT-4o', defaultUrl: 'https://api.acedata.cloud/v1', defaultModel: 'gpt-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o mini', defaultUrl: 'https://api.acedata.cloud/v1', defaultModel: 'gpt-4o-mini' },
+    { id: 'claude-3-5-sonnet', name: 'Claude 3.5', defaultUrl: 'https://api.acedata.cloud/anthropic/v1', defaultModel: 'claude-3-5-sonnet-20250514' },
+    { id: 'claude-3-7-sonnet', name: 'Claude 3.7', defaultUrl: 'https://api.acedata.cloud/anthropic/v1', defaultModel: 'claude-sonnet-4-20250514' },
+    { id: 'glm-4', name: 'GLM-4', defaultUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4' },
+    { id: 'glm-4v', name: 'GLM-4V', defaultUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4v' },
+    { id: 'deepseek-chat', name: 'DeepSeek', defaultUrl: 'https://api.acedata.cloud/v1', defaultModel: 'deepseek-chat' },
 ];
+
+interface ModelConfig {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+}
 
 interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
-}
-
-// API 调用函数
-async function callAI(model: AIModel, messages: Message[], apiKeys: Record<string, string>): Promise<string> {
-    const modelInfo = MODELS.find(m => m.id === model);
-    if (!modelInfo) throw new Error('未知模型');
-
-    if (model.startsWith('claude')) {
-        // Anthropic API
-        const apiKey = apiKeys.anthropic;
-        if (!apiKey) throw new Error('请先配置 Anthropic API Key');
-        
-        const modelMap: Record<string, string> = {
-            'claude-3-5-sonnet': 'claude-sonnet-4-20250514',
-            'claude-3-7-sonnet': 'claude-sonnet-4-20250514',
-        };
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: modelMap[model] || model,
-                max_tokens: 4096,
-                messages: messages.map(m => ({ role: m.role, content: m.content })),
-            }),
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error?.message || `API 错误: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.content[0]?.text || '';
-    } else if (model.startsWith('glm')) {
-        // 智谱 API
-        const apiKey = apiKeys.zhipu;
-        if (!apiKey) throw new Error('请先配置智谱 API Key');
-
-        const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                model: model === 'glm-4v' ? 'glm-4v' : 'glm-4',
-                messages: messages.map(m => ({ role: m.role, content: m.content })),
-            }),
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error?.message || `API 错误: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.choices[0]?.message?.content || '';
-    } else {
-        // OpenAI API
-        const apiKey = apiKeys.openai;
-        if (!apiKey) throw new Error('请先配置 OpenAI API Key');
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                model: model,
-                messages: messages.map(m => ({ role: m.role, content: m.content })),
-            }),
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error?.message || `API 错误: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.choices[0]?.message?.content || '';
-    }
 }
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -128,13 +49,28 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showSettings, setShowSettings] = useState(false);
+    const [showModelModal, setShowModelModal] = useState(false);
+    const [configuringModel, setConfiguringModel] = useState<ModelInfo | null>(null);
     
-    // API Keys
-    const [apiKeys, setApiKeys] = useState(() => ({
-        openai: localStorage.getItem('ai-openai-key') || '',
-        anthropic: localStorage.getItem('ai-anthropic-key') || '',
-        zhipu: localStorage.getItem('ai-zhipu-key') || '',
-    }));
+    // 每个模型的配置
+    const [modelConfigs, setModelConfigs] = useState<Record<AIModel, ModelConfig>>(() => {
+        const saved = localStorage.getItem('ai-model-configs');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch {}
+        }
+        // 默认配置
+        const configs: Record<AIModel, ModelConfig> = {} as Record<AIModel, ModelConfig>;
+        MODELS.forEach(m => {
+            configs[m.id] = {
+                apiKey: '',
+                baseUrl: m.defaultUrl,
+                model: m.defaultModel,
+            };
+        });
+        return configs;
+    });
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -143,11 +79,114 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const saveSettings = () => {
-        localStorage.setItem('ai-openai-key', apiKeys.openai);
-        localStorage.setItem('ai-anthropic-key', apiKeys.anthropic);
-        localStorage.setItem('ai-zhipu-key', apiKeys.zhipu);
+    const saveAllConfigs = () => {
+        localStorage.setItem('ai-model-configs', JSON.stringify(modelConfigs));
         setShowSettings(false);
+    };
+
+    const openModelConfig = (model: ModelInfo) => {
+        setConfiguringModel(model);
+        setShowModelModal(true);
+    };
+
+    const saveModelConfig = () => {
+        if (configuringModel) {
+            setModelConfigs(prev => ({
+                ...prev,
+                [configuringModel.id]: prev[configuringModel.id]
+            }));
+        }
+        setShowModelModal(false);
+        setConfiguringModel(null);
+    };
+
+    const updateModelConfig = (field: keyof ModelConfig, value: string) => {
+        if (configuringModel) {
+            setModelConfigs(prev => ({
+                ...prev,
+                [configuringModel.id]: {
+                    ...prev[configuringModel.id],
+                    [field]: value
+                }
+            }));
+        }
+    };
+
+    const callAI = async (model: AIModel, messages: Message[]): Promise<string> => {
+        const config = modelConfigs[model];
+        if (!config?.apiKey) {
+            throw new Error('请先配置 API Key');
+        }
+
+        const modelInfo = MODELS.find(m => m.id === model);
+        if (!modelInfo) throw new Error('未知模型');
+
+        if (model.startsWith('claude')) {
+            // Anthropic API
+            const response = await fetch(`${config.baseUrl}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': config.apiKey,
+                    'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                    model: config.model || model,
+                    max_tokens: 4096,
+                    messages: messages.map(m => ({ role: m.role, content: m.content })),
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `API 错误: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.content[0]?.text || '';
+        } else if (model.startsWith('glm')) {
+            // 智谱 API
+            const response = await fetch(`${config.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: config.model || model,
+                    messages: messages.map(m => ({ role: m.role, content: m.content })),
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `API 错误: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0]?.message?.content || '';
+        } else {
+            // OpenAI 兼容 API (包括 DeepSeek)
+            const response = await fetch(`${config.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: config.model || model,
+                    messages: messages.map(m => ({ role: m.role, content: m.content })),
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `API 错误: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0]?.message?.content || '';
+        }
     };
 
     const handleSend = async () => {
@@ -166,7 +205,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
         setError('');
 
         try {
-            const reply = await callAI(selectedModel, [...messages, userMessage], apiKeys);
+            const reply = await callAI(selectedModel, [...messages, userMessage]);
 
             const assistantMessage: Message = {
                 id: generateId(),
@@ -195,13 +234,13 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
         setError('');
     };
 
+    const currentConfig = modelConfigs[selectedModel];
+    const hasApiKey = !!currentConfig?.apiKey;
+
     if (!isOpen) return null;
 
-    const currentPlatform = MODELS.find(m => m.id === selectedModel)?.platform || 'openai';
-    const platformName = currentPlatform === 'openai' ? 'OpenAI' : currentPlatform === 'anthropic' ? 'Anthropic' : '智谱';
-    const hasApiKey = !!apiKeys[currentPlatform];
-
     return (
+        <>
         <div 
             className={`fixed right-0 top-0 h-full w-[400px] z-[200] border-l shadow-2xl animate-in slide-in-from-right duration-300 ${
                 isDark ? 'bg-[#0B0C0E] border-zinc-800' : 'bg-white border-gray-200'
@@ -240,67 +279,49 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
             {/* API 设置 */}
             {showSettings && (
                 <div className={`p-4 border-b ${isDark ? 'border-zinc-800 bg-zinc-900/50' : 'border-gray-200 bg-gray-50'}`}>
-                    <div className={`text-xs font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>API Key 配置</div>
-                    
-                    <div className="space-y-3">
-                        <div>
-                            <label className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>OpenAI API Key</label>
-                            <input
-                                type="password"
-                                value={apiKeys.openai}
-                                onChange={e => setApiKeys(k => ({ ...k, openai: e.target.value }))}
-                                placeholder="sk-..."
-                                className={`w-full mt-1 px-3 py-2 text-sm rounded-lg border ${isDark ? 'bg-zinc-800 border-zinc-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                            />
-                        </div>
-                        <div>
-                            <label className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Anthropic API Key</label>
-                            <input
-                                type="password"
-                                value={apiKeys.anthropic}
-                                onChange={e => setApiKeys(k => ({ ...k, anthropic: e.target.value }))}
-                                placeholder="sk-ant-..."
-                                className={`w-full mt-1 px-3 py-2 text-sm rounded-lg border ${isDark ? 'bg-zinc-800 border-zinc-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                            />
-                        </div>
-                        <div>
-                            <label className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>智谱 API Key</label>
-                            <input
-                                type="password"
-                                value={apiKeys.zhipu}
-                                onChange={e => setApiKeys(k => ({ ...k, zhipu: e.target.value }))}
-                                placeholder="..."
-                                className={`w-full mt-1 px-3 py-2 text-sm rounded-lg border ${isDark ? 'bg-zinc-800 border-zinc-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                            />
-                        </div>
-                        <button
-                            onClick={saveSettings}
-                            className={`w-full py-2 text-sm font-medium rounded-lg transition-colors ${
-                                isDark ? 'bg-pink-500 hover:bg-pink-400 text-white' : 'bg-pink-500 hover:bg-pink-600 text-white'
-                            }`}
-                        >
-                            保存配置
-                        </button>
+                    <div className={`text-xs font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        点击模型按钮配置 API
                     </div>
+                    <p className={`text-xs mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        每个模型可配置独立的 API Key 和 URL
+                    </p>
                 </div>
             )}
 
             {/* 模型选择 */}
             <div className={`px-4 py-2 border-b ${isDark ? 'border-zinc-800' : 'border-gray-200'}`}>
                 <div className="flex flex-wrap gap-1.5">
-                    {MODELS.map(model => (
-                        <button
-                            key={model.id}
-                            onClick={() => setSelectedModel(model.id)}
-                            className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
-                                selectedModel === model.id
-                                    ? (isDark ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : 'bg-pink-50 text-pink-600 border border-pink-200')
-                                    : (isDark ? 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:border-zinc-600' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300')
-                            }`}
-                        >
-                            {model.name}
-                        </button>
-                    ))}
+                    {MODELS.map(model => {
+                        const config = modelConfigs[model.id];
+                        const isConfigured = !!config?.apiKey;
+                        const isSelected = selectedModel === model.id;
+                        
+                        return (
+                            <div key={model.id} className="relative">
+                                <button
+                                    onClick={() => setSelectedModel(model.id)}
+                                    onDoubleClick={() => openModelConfig(model)}
+                                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                                        isSelected
+                                            ? (isDark ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : 'bg-pink-50 text-pink-600 border border-pink-200')
+                                            : (isDark ? 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:border-zinc-600' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300')
+                                    }`}
+                                >
+                                    {model.name}
+                                    {isConfigured && <span className="ml-1 text-green-500">✓</span>}
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); openModelConfig(model); }}
+                                    className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-xs ${
+                                        isDark ? 'bg-zinc-700 text-gray-400 hover:bg-zinc-600' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                    }`}
+                                    title="配置"
+                                >
+                                    ⚙
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -315,11 +336,11 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
                                 你好，我是 AI 助手
                             </h3>
                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                请先选择模型并配置 API Key
+                                双击模型按钮配置 API，双击后即可开始对话
                             </p>
                             {!hasApiKey && (
                                 <p className={`text-xs mt-2 ${isDark ? 'text-pink-400' : 'text-pink-500'}`}>
-                                    当前 {platformName} 未配置 API Key
+                                    当前模型未配置 API Key
                                 </p>
                             )}
                         </div>
@@ -397,11 +418,114 @@ export const AIPanel: React.FC<AIPanelProps> = ({ isOpen, onClose, isDark }) => 
                         </div>
                         <div className="flex items-center gap-1">
                             <Icons.Cpu size={12} />
-                            <span>{platformName}</span>
+                            <span>{hasApiKey ? '已配置' : '未配置'}</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        {/* 模型配置弹窗 */}
+        {showModelModal && configuringModel && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[300]" onClick={() => setShowModelModal(false)}>
+                <div 
+                    className={`w-[500px] rounded-2xl p-6 ${isDark ? 'bg-[#1a1a1a] border border-zinc-800' : 'bg-white border border-gray-200'}`}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className={`flex items-center justify-between mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <h3 className="text-lg font-semibold">{configuringModel.name} - API 配置</h3>
+                        <button onClick={() => setShowModelModal(false)} className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}>
+                            <Icons.X size={20} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                API Key
+                            </label>
+                            <input
+                                type="password"
+                                value={modelConfigs[configuringModel.id]?.apiKey || ''}
+                                onChange={e => updateModelConfig('apiKey', e.target.value)}
+                                placeholder="输入 API Key"
+                                className={`w-full px-3 py-2 text-sm rounded-lg border ${
+                                    isDark 
+                                        ? 'bg-zinc-800 border-zinc-700 text-white placeholder-gray-500' 
+                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                }`}
+                            />
+                        </div>
+
+                        <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                Base URL
+                            </label>
+                            <input
+                                type="text"
+                                value={modelConfigs[configuringModel.id]?.baseUrl || ''}
+                                onChange={e => updateModelConfig('baseUrl', e.target.value)}
+                                placeholder={configuringModel.defaultUrl}
+                                className={`w-full px-3 py-2 text-sm rounded-lg border ${
+                                    isDark 
+                                        ? 'bg-zinc-800 border-zinc-700 text-white placeholder-gray-500' 
+                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                }`}
+                            />
+                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                默认: {configuringModel.defaultUrl}
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                模型名称
+                            </label>
+                            <input
+                                type="text"
+                                value={modelConfigs[configuringModel.id]?.model || ''}
+                                onChange={e => updateModelConfig('model', e.target.value)}
+                                placeholder={configuringModel.defaultModel}
+                                className={`w-full px-3 py-2 text-sm rounded-lg border ${
+                                    isDark 
+                                        ? 'bg-zinc-800 border-zinc-700 text-white placeholder-gray-500' 
+                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                }`}
+                            />
+                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                默认: {configuringModel.defaultModel}
+                            </p>
+                        </div>
+
+                        <div className={`p-3 rounded-lg text-xs ${isDark ? 'bg-zinc-800 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
+                            <p className="font-medium mb-1">提示：</p>
+                            <p>• 使用 Ace Data Cloud API: URL 填 <code className={`${isDark ? 'text-pink-400' : 'text-pink-600'}`}>https://api.acedata.cloud/v1</code></p>
+                            <p>• 使用 OpenAI API: URL 填 <code className={`${isDark ? 'text-pink-400' : 'text-pink-600'}`}>https://api.openai.com/v1</code></p>
+                            <p>• 使用智谱 API: URL 填 <code className={`${isDark ? 'text-pink-400' : 'text-pink-600'}`}>https://open.bigmodel.cn/api/paas/v4</code></p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                        <button
+                            onClick={() => setShowModelModal(false)}
+                            className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                isDark 
+                                    ? 'border-zinc-700 text-gray-300 hover:bg-zinc-800' 
+                                    : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >
+                            取消
+                        </button>
+                        <button
+                            onClick={saveModelConfig}
+                            className="flex-1 py-2 text-sm font-medium rounded-lg bg-pink-500 text-white hover:bg-pink-600 transition-colors"
+                        >
+                            保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
