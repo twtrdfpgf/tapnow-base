@@ -41,11 +41,11 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, isD
             >
                 {/* Header */}
                 <div className={`px-6 py-5 border-b ${borderColor} text-center`}>
-                    <div className={`w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-emerald-500/20 to-cyan-500/20' : 'bg-gradient-to-br from-emerald-100 to-cyan-100'}`}>
-                        <Icons.Sparkles size={32} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+                    <div className={`w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-pink-500/20 to-purple-500/20' : 'bg-gradient-to-br from-pink-100 to-purple-100'}`}>
+                        <Icons.Sparkles size={32} className={isDark ? 'text-pink-400' : 'text-pink-600'} />
                     </div>
-                    <h2 className={`text-xl font-bold ${textMain}`}>欢迎使用无限画布 🎨</h2>
-                    <p className={`text-sm mt-1 ${textSub}`}>开始你的 AI 创意之旅</p>
+                    <h2 className={`text-xl font-bold ${textMain}`}>欢迎使用桃屁屁 AI 画布 🎨</h2>
+                    <p className={`text-sm mt-1 ${textSub}`}>你的 AI 创意工具箱</p>
                 </div>
 
                 {/* Content */}
@@ -67,34 +67,17 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, isD
                         </div>
                     </div>
 
-                    {/* 推荐区域 */}
-                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'}`}>
+                    {/* 免责声明 */}
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
-                            <Icons.Check size={20} className={isDark ? 'text-emerald-400 shrink-0 mt-0.5' : 'text-emerald-600 shrink-0 mt-0.5'} />
+                            <Icons.Info size={20} className={isDark ? 'text-blue-400 shrink-0 mt-0.5' : 'text-blue-600 shrink-0 mt-0.5'} />
                             <div>
-                                <h4 className={`text-sm font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-                                    推荐使用
+                                <h4 className={`text-sm font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                                    免责声明
                                 </h4>
-                                <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-emerald-300/80' : 'text-emerald-600'}`}>
-                                    <a 
-                                        href="https://xianchou.com" 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="font-bold underline hover:opacity-80"
-                                    >
-                                        献丑AI (xianchou.com)
-                                    </a>
-                                    <span className="mx-1">—</span>
-                                    大厂服务，稳定可靠不跑路
+                                <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-blue-300/80' : 'text-blue-600'}`}>
+                                    桃屁屁 AI 画布为完全免费开源项目，仅供学习交流使用。使用过程中产生的任何内容均由用户自行负责，与本平台无关。
                                 </p>
-                                <div className={`mt-2 flex flex-wrap gap-2`}>
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                                        🖼️ Banana Pro 4K 仅 0.2元/张
-                                    </span>
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                                        🎬 Sora 2 顶配 仅 4积分/条
-                                    </span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -116,7 +99,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, isD
                 <div className={`px-6 py-4 border-t ${borderColor} flex justify-center`}>
                     <button
                         onClick={handleClose}
-                        className="px-8 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98]"
+                        className="px-8 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-lg shadow-pink-500/25 transition-all active:scale-[0.98]"
                     >
                         我已了解，开始使用
                     </button>

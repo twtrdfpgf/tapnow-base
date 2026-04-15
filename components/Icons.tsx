@@ -11,7 +11,8 @@ import {
   Clapperboard as ClapperboardIcon, Frame, Images, Blend, Edit3, RefreshCw,
   Eye, EyeOff, RotateCcw, Info, Hand, 
   Keyboard, ZoomIn, ZoomOut, Maximize, Minimize, Move, PlusCircle, MinusCircle,
-  ArrowUpDown, ArrowUp, ArrowDown, AlignVerticalSpaceBetween, AlignHorizontalSpaceBetween
+  ArrowUpDown, ArrowUp, ArrowDown, AlignVerticalJustifyCenter, AlignHorizontalJustifyCenter,
+  Paperclip, AtSign
 } from 'lucide-react';
 
 export const Icons = {
@@ -22,9 +23,9 @@ export const Icons = {
   BookOpen, ArrowRightLeft, Scan, User, Clapperboard, Play, Pause, Sparkles,
   Sun, Moon, Globe, Cpu, Zap, LayoutGrid, Search, ImagePlus, AlertCircle, AlertTriangle,
   Frame, Images, Blend, Edit3, RefreshCw, Eye, EyeOff, RotateCcw, Info, 
-  Hand, AlignVerticalJustify, AlignHorizontalJustifyCenter, Keyboard,
+  Hand, AlignVerticalJustifyCenter, AlignHorizontalJustifyCenter, Keyboard,
   ZoomIn, ZoomOut, Maximize, Minimize, Move, PlusCircle, MinusCircle,
-  ArrowUpDown, ArrowUp, ArrowDown, AlignVerticalSpaceBetween, AlignHorizontalSpaceBetween,
+  ArrowUpDown, ArrowUp, ArrowDown, Paperclip, AtSign,
   // History 图标（使用 Clock）
   History: Clock
 };

@@ -469,7 +469,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className={`w-8 h-px my-1 ${isDark ? 'bg-zinc-800' : 'bg-gray-200'}`} />
         
         {/* 第四行：排列工具（展开面板） */}
-        <SidebarButton icon={Icons.AlignVerticalJustify} panel="TOOLS" tooltip="排列工具" />
+        <SidebarButton icon={Icons.AlignVerticalJustifyCenter} panel="TOOLS" tooltip="排列工具" />
         
         <div className={`w-8 h-px my-1 ${isDark ? 'bg-zinc-800' : 'bg-gray-200'}`} />
         

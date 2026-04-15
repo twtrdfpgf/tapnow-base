@@ -8,10 +8,12 @@ import { Icons } from './components/Icons';
 import { generateCreativeDescription, generateImage, generateVideo } from './services/geminiService';
 import { storageService } from './services/storageService';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
+import Minimap from './components/Minimap';
 import { SettingsModal } from './components/Settings/SettingsModal';
 import { StorageModal } from './components/Settings/StorageModal';
 import { ExportImportModal } from './components/Settings/ExportImportModal';
 import { WelcomeModal, hasShownWelcome } from './components/Settings/WelcomeModal';
+import { AIPanel } from './components/AIPanel';
 
 const DEFAULT_NODE_WIDTH = 320;
 const DEFAULT_NODE_HEIGHT = 240; 
@@ -92,6 +94,45 @@ const CanvasWithSidebar: React.FC = () => {
       setDragMode('PAN');
   }, []);
   
+  // 缩放控制
+  const handleZoomIn = useCallback(() => {
+      const newK = Math.min(transform.k + 0.1, 2);
+      setTransform(prev => ({ ...prev, k: newK }));
+  }, [transform.k]);
+  
+  const handleZoomOut = useCallback(() => {
+      const newK = Math.max(transform.k - 0.1, 0.4);
+      setTransform(prev => ({ ...prev, k: newK }));
+  }, [transform.k]);
+  
+  const handleZoomReset = useCallback(() => {
+      setTransform({ x: 0, y: 0, k: 1 });
+  }, []);
+
+  // 清除 Sora 2 的旧配置（修复 endpoint 问题）
+  useEffect(() => {
+      if (typeof window !== 'undefined') {
+          try {
+              const sora2Key = `API_CONFIG_MODEL_Sora 2`;
+              const stored = localStorage.getItem(sora2Key);
+              if (stored) {
+                  const parsed = JSON.parse(stored);
+                  // 如果 endpoint 是旧的 chat completions，清除配置
+                  if (parsed.endpoint === '/v1/chat/completions') {
+                      localStorage.removeItem(sora2Key);
+                      console.log('[App] Cleared old Sora 2 config with old endpoint');
+                  }
+              }
+          } catch(e) {
+              // 忽略错误
+          }
+      }
+  }, []);
+
+  // Default to light theme (white)
+  const [canvasBg, setCanvasBg] = useState('#F5F7FA');
+  const isDark = canvasBg === '#0B0C0E';
+
   // 截图功能
   const handleScreenshot = useCallback(() => {
       const container = containerRef.current;
@@ -131,45 +172,6 @@ const CanvasWithSidebar: React.FC = () => {
       // 使用 html2canvas 或简单绘制节点（这里简化处理）
       alert('截图功能：Ctrl+S 保存当前视图');
   }, [canvasBg, isDark]);
-  
-  // 缩放控制
-  const handleZoomIn = useCallback(() => {
-      const newK = Math.min(transform.k + 0.1, 2);
-      setTransform(prev => ({ ...prev, k: newK }));
-  }, [transform.k]);
-  
-  const handleZoomOut = useCallback(() => {
-      const newK = Math.max(transform.k - 0.1, 0.4);
-      setTransform(prev => ({ ...prev, k: newK }));
-  }, [transform.k]);
-  
-  const handleZoomReset = useCallback(() => {
-      setTransform({ x: 0, y: 0, k: 1 });
-  }, []);
-
-  // 清除 Sora 2 的旧配置（修复 endpoint 问题）
-  useEffect(() => {
-      if (typeof window !== 'undefined') {
-          try {
-              const sora2Key = `API_CONFIG_MODEL_Sora 2`;
-              const stored = localStorage.getItem(sora2Key);
-              if (stored) {
-                  const parsed = JSON.parse(stored);
-                  // 如果 endpoint 是旧的 chat completions，清除配置
-                  if (parsed.endpoint === '/v1/chat/completions') {
-                      localStorage.removeItem(sora2Key);
-                      console.log('[App] Cleared old Sora 2 config with old endpoint');
-                  }
-              }
-          } catch(e) {
-              // 忽略错误
-          }
-      }
-  }, []);
-
-  // Default to light theme (white)
-  const [canvasBg, setCanvasBg] = useState('#F5F7FA');
-  const isDark = canvasBg === '#0B0C0E';
   
   // Sync body class for CSS variables
   useEffect(() => {
@@ -1350,7 +1352,7 @@ const CanvasWithSidebar: React.FC = () => {
             
             {/* 快捷键面板 */}
             {showShortcutsPanel && (
-                <div className={`absolute bottom-full left-0 mb-2 w-72 p-4 rounded-2xl backdrop-blur-xl border shadow-xl animate-in slide-in-from-bottom-2 duration-200 ${
+                <div className={`absolute bottom-full left-20 mb-2 w-72 p-4 rounded-2xl backdrop-blur-xl border shadow-xl animate-in slide-in-from-bottom-2 duration-200 z-[100] ${
                     isDark ? 'bg-[#18181b]/95 border-zinc-800' : 'bg-white/95 border-gray-200'
                 }`}>
                     <div className={`text-sm font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>快捷键</div>
@@ -1733,10 +1735,19 @@ const CanvasWithSidebar: React.FC = () => {
                         ? 'bg-[#18181b]/90 border-zinc-800 shadow-xl' 
                         : 'bg-white/90 border-gray-200 shadow-lg'
                 }`}>
-                    {/* Zoom */}
-                    <span className={`px-3 py-1.5 text-sm font-medium tabular-nums ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {Math.round(transform.k * 100)}%
-                    </span>
+                    {/* AI 助手 */}
+                    <button
+                        onClick={() => setShowAIPanel(!showAIPanel)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                            showAIPanel 
+                                ? (isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600')
+                                : (isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                        }`}
+                        title="AI 助手"
+                    >
+                        <Icons.Sparkles size={15} />
+                        <span>AI 助手</span>
+                    </button>
                     
                     <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-gray-200'}`} />
                     
@@ -1802,6 +1813,7 @@ const CanvasWithSidebar: React.FC = () => {
                 </div>
             </div>
             {renderContextMenu()}
+            <AIPanel isOpen={showAIPanel} onClose={() => setShowAIPanel(false)} isDark={isDark} />
             {renderQuickAddMenu()}
             {renderNewWorkflowDialog()}
             {previewMedia && (
@@ -1812,6 +1824,15 @@ const CanvasWithSidebar: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* 右下角 - 小地图 */}
+            <Minimap
+                nodes={nodes}
+                transform={transform}
+                containerWidth={containerRef.current?.clientWidth || 800}
+                containerHeight={containerRef.current?.clientHeight || 600}
+                isDark={isDark}
+            />
         </div>
     </div>
   );
